@@ -31,7 +31,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    @Operation(summary = "注册用户", description = "创建普通用户账户；填写邮箱时必须提供邮箱验证码")
+    @Operation(summary = "注册用户", description = "创建普通用户账户；填写邮箱时必须提供 Redis 邮箱验证码")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "201",
@@ -59,7 +59,7 @@ public class AuthController {
             ),
             @ApiResponse(
                     responseCode = "422",
-                    description = "邮箱验证码无效或过期",
+                    description = "邮箱验证码无效",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                             schema = @Schema(implementation = ProblemDetail.class)
@@ -68,6 +68,14 @@ public class AuthController {
             @ApiResponse(
                     responseCode = "429",
                     description = "邮箱验证码尝试次数超限",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description = "验证码存储不可用",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                             schema = @Schema(implementation = ProblemDetail.class)

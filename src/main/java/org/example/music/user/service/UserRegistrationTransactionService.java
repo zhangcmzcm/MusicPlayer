@@ -11,6 +11,7 @@ import org.example.music.user.dto.UserRegisterResponse;
 import org.example.music.user.exception.UserAlreadyExistsException;
 import org.example.music.user.repository.UserRepository;
 import org.example.music.verification.service.EmailVerificationCodeService;
+import org.example.music.verification.service.VerifiedEmailCode;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,15 +22,18 @@ public class UserRegistrationTransactionService {
     private final UserRepository userRepository;
     private final PasswordHasher passwordHasher;
     private final EmailVerificationCodeService emailVerificationCodeService;
+    private final AfterCommitEmailVerificationCodeConsumer afterCommitEmailVerificationCodeConsumer;
 
     public UserRegistrationTransactionService(
             UserRepository userRepository,
             PasswordHasher passwordHasher,
-            EmailVerificationCodeService emailVerificationCodeService
+            EmailVerificationCodeService emailVerificationCodeService,
+            AfterCommitEmailVerificationCodeConsumer afterCommitEmailVerificationCodeConsumer
     ) {
         this.userRepository = userRepository;
         this.passwordHasher = passwordHasher;
         this.emailVerificationCodeService = emailVerificationCodeService;
+        this.afterCommitEmailVerificationCodeConsumer = afterCommitEmailVerificationCodeConsumer;
     }
 
     @Transactional
@@ -51,8 +55,9 @@ public class UserRegistrationTransactionService {
             );
         }
 
+        VerifiedEmailCode verifiedEmailCode = null;
         if (email != null) {
-            emailVerificationCodeService.consume(email, request.code());
+            verifiedEmailCode = emailVerificationCodeService.validate(email, request.code());
         }
 
         UserEntity user = UserEntity.create(
@@ -69,6 +74,10 @@ public class UserRegistrationTransactionService {
                     UserAlreadyExistsException.USER_ALREADY_EXISTS,
                     "User already exists"
             );
+        }
+
+        if (verifiedEmailCode != null) {
+            afterCommitEmailVerificationCodeConsumer.registerAfterCommit(verifiedEmailCode);
         }
 
         return new UserRegisterResponse(

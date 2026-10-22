@@ -1,77 +1,131 @@
 package org.example.music.verification.service;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
+import java.util.Optional;
 import org.example.music.security.PasswordHasher;
-import org.example.music.verification.domain.VerificationCodeEntity;
+import org.example.music.verification.domain.EmailVerificationCodeSnapshot;
 import org.example.music.verification.domain.VerificationCodePurpose;
 import org.example.music.verification.exception.EmailVerificationCodeException;
-import org.example.music.verification.repository.VerificationCodeRepository;
-import org.springframework.data.domain.PageRequest;
+import org.example.music.verification.exception.VerificationCodeStoreUnavailableException;
+import org.example.music.verification.repository.EmailVerificationCodeStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EmailVerificationCodeService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(EmailVerificationCodeService.class);
     private static final int MAX_ATTEMPTS = 5;
 
-    private final VerificationCodeRepository verificationCodeRepository;
+    private final EmailVerificationCodeStore emailVerificationCodeStore;
     private final PasswordHasher passwordHasher;
 
     public EmailVerificationCodeService(
-            VerificationCodeRepository verificationCodeRepository,
+            EmailVerificationCodeStore emailVerificationCodeStore,
             PasswordHasher passwordHasher
     ) {
-        this.verificationCodeRepository = verificationCodeRepository;
+        this.emailVerificationCodeStore = emailVerificationCodeStore;
         this.passwordHasher = passwordHasher;
     }
 
-    @Transactional
-    public void consume(String email, String code) {
-        VerificationCodeEntity verificationCode = verificationCodeRepository
-                .findLatestForUpdate(email, VerificationCodePurpose.REGISTER, PageRequest.of(0, 1))
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new EmailVerificationCodeException(
-                        EmailVerificationCodeException.Failure.INVALID,
-                        null,
-                        "Email verification code is invalid"
-                ));
-
-        if (verificationCode.isUsed()) {
+    public VerifiedEmailCode validate(String email, String code) {
+        EmailVerificationCodeSnapshot snapshot = find(email);
+        if (snapshot.usedAt() != null) {
             throw new EmailVerificationCodeException(
                     EmailVerificationCodeException.Failure.ALREADY_USED,
-                    verificationCode.getId(),
                     "Email verification code has already been used"
             );
         }
-
-        if (verificationCode.hasExceededAttempts(MAX_ATTEMPTS)) {
-            throw new EmailVerificationCodeException(
-                    EmailVerificationCodeException.Failure.ATTEMPTS_EXCEEDED,
-                    verificationCode.getId(),
-                    "Email verification code attempts are exhausted"
-            );
+        if (snapshot.attempts() >= MAX_ATTEMPTS) {
+            throw attemptsExceededException();
         }
 
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        if (verificationCode.isExpired(now)) {
-            throw new EmailVerificationCodeException(
-                    EmailVerificationCodeException.Failure.EXPIRED,
-                    verificationCode.getId(),
-                    "Email verification code has expired"
-            );
-        }
-
-        if (!passwordHasher.matches(code, verificationCode.getCodeHash())) {
+        if (!passwordHasher.matches(code, snapshot.codeHash())) {
+            int attempts = incrementFailedAttempts(email, snapshot.version());
+            if (attempts >= MAX_ATTEMPTS) {
+                throw attemptsExceededException();
+            }
             throw new EmailVerificationCodeException(
                     EmailVerificationCodeException.Failure.INVALID,
-                    verificationCode.getId(),
                     "Email verification code is invalid"
             );
         }
 
-        verificationCode.consume(now);
+        return new VerifiedEmailCode(email, snapshot.version());
+    }
+
+    public void consumeAfterCommit(VerifiedEmailCode verifiedEmailCode) {
+        try {
+            boolean consumed = emailVerificationCodeStore.consume(
+                    verifiedEmailCode.email(),
+                    VerificationCodePurpose.REGISTER,
+                    verifiedEmailCode.version(),
+                    Instant.now()
+            );
+            if (!consumed) {
+                LOGGER.warn(
+                        "Email verification code was not consumed after registration commit, traceId={}, reason={}",
+                        MDC.get("traceId"),
+                        "missing, used, or replaced"
+                );
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "Email verification code consumption failed after registration commit, traceId={}, exceptionType={}",
+                    MDC.get("traceId"),
+                    exception.getClass().getSimpleName(),
+                    exception
+            );
+        }
+    }
+
+    private EmailVerificationCodeSnapshot find(String email) {
+        try {
+            Optional<EmailVerificationCodeSnapshot> snapshot = emailVerificationCodeStore.find(
+                    email,
+                    VerificationCodePurpose.REGISTER
+            );
+            return snapshot.orElseThrow(() -> new EmailVerificationCodeException(
+                    EmailVerificationCodeException.Failure.INVALID,
+                    "Email verification code is invalid"
+            ));
+        } catch (DataAccessException exception) {
+            throw new VerificationCodeStoreUnavailableException(
+                    "Email verification code store is unavailable",
+                    exception
+            );
+        }
+    }
+
+    private int incrementFailedAttempts(String email, String version) {
+        try {
+            int attempts = emailVerificationCodeStore.incrementFailedAttempts(
+                    email,
+                    VerificationCodePurpose.REGISTER,
+                    version
+            );
+            if (attempts < 0) {
+                throw new EmailVerificationCodeException(
+                        EmailVerificationCodeException.Failure.INVALID,
+                        "Email verification code is invalid"
+                );
+            }
+            return attempts;
+        } catch (DataAccessException exception) {
+            throw new VerificationCodeStoreUnavailableException(
+                    "Email verification code store is unavailable",
+                    exception
+            );
+        }
+    }
+
+    private EmailVerificationCodeException attemptsExceededException() {
+        return new EmailVerificationCodeException(
+                EmailVerificationCodeException.Failure.ATTEMPTS_EXCEEDED,
+                "Email verification code attempts are exhausted"
+        );
     }
 }

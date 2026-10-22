@@ -1,14 +1,20 @@
 package org.example.music.user;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -21,18 +27,19 @@ import org.example.music.user.dto.UserRegisterRequest;
 import org.example.music.user.dto.UserRegisterResponse;
 import org.example.music.user.repository.UserRepository;
 import org.example.music.user.service.UserRegistrationService;
-import org.example.music.verification.domain.VerificationCodeEntity;
+import org.example.music.verification.domain.EmailVerificationCodeSnapshot;
 import org.example.music.verification.domain.VerificationCodePurpose;
 import org.example.music.verification.exception.EmailVerificationCodeException;
-import org.example.music.verification.repository.VerificationCodeRepository;
-import org.example.music.verification.service.EmailVerificationCodeService;
+import org.example.music.verification.repository.EmailVerificationCodeStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.EnabledIfDockerAvailable;
@@ -44,9 +51,15 @@ import org.testcontainers.utility.DockerImageName;
 @EnabledIfDockerAvailable
 class UserRegistrationIntegrationTest {
 
+    private static final String KEY_PREFIX = "music:verification:code:REGISTER:";
+
     @Container
     private static final MySQLContainer<?> MYSQL = new MySQLContainer<>(DockerImageName.parse("mysql:8.4"))
             .withDatabaseName("music");
+
+    @Container
+    private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.4"))
+            .withExposedPorts(6379);
 
     @Autowired
     private UserRegistrationService userRegistrationService;
@@ -55,34 +68,43 @@ class UserRegistrationIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private VerificationCodeRepository verificationCodeRepository;
-
-    @Autowired
-    private EmailVerificationCodeService emailVerificationCodeService;
+    private EmailVerificationCodeStore emailVerificationCodeStore;
 
     @Autowired
     private PasswordHasher passwordHasher;
 
     @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @DynamicPropertySource
-    static void configureDatabase(DynamicPropertyRegistry registry) {
+    static void configureContainers(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
+        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("spring.data.redis.database", () -> "0");
+        registry.add("spring.data.redis.username", () -> "default");
+        registry.add("spring.data.redis.password", () -> "");
+        registry.add("spring.data.redis.timeout", () -> "2s");
     }
 
     @BeforeEach
     void resetDatabase() {
         createUsersTable();
-        jdbcTemplate.update("DELETE FROM verification_codes");
         jdbcTemplate.update("DELETE FROM users");
+        Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
     }
 
     @Test
     void should_create_user_and_consume_code_when_registration_is_valid() {
-        seedCode("alice@example.com", "123456", LocalDateTime.now(ZoneOffset.UTC).plusMinutes(10));
+        seedCode("alice@example.com", "123456");
 
         UserRegisterResponse response = userRegistrationService.register(new UserRegisterRequest(
                 "alice_2026",
@@ -94,17 +116,14 @@ class UserRegistrationIntegrationTest {
         assertEquals("alice@example.com", response.email());
         assertEquals(UserRole.USER, response.userRole());
         assertEquals(1, userRepository.count());
-        VerificationCodeEntity code = verificationCodeRepository.findAll().getFirst();
-        assertNotNull(code.getUsedAt());
+        EmailVerificationCodeSnapshot code = code("alice@example.com");
+        assertNotNull(code.usedAt());
+        assertTrue(redisTemplate.getExpire(KEY_PREFIX + "alice@example.com", TimeUnit.SECONDS) > 0);
     }
 
     @Test
     void should_preserve_failed_attempt_when_code_is_wrong() {
-        VerificationCodeEntity code = seedCode(
-                "alice@example.com",
-                "123456",
-                LocalDateTime.now(ZoneOffset.UTC).plusMinutes(10)
-        );
+        seedCode("alice@example.com", "123456");
 
         EmailVerificationCodeException exception = assertThrows(
                 EmailVerificationCodeException.class,
@@ -117,13 +136,13 @@ class UserRegistrationIntegrationTest {
         );
 
         assertEquals(EmailVerificationCodeException.Failure.INVALID, exception.getFailure());
-        assertEquals(1, verificationCodeRepository.findById(code.getId()).orElseThrow().getAttempts());
+        assertEquals(1, code("alice@example.com").attempts());
         assertEquals(0, userRepository.count());
     }
 
     @Test
     void should_block_registration_after_five_invalid_attempts() {
-        seedCode("alice@example.com", "123456", LocalDateTime.now(ZoneOffset.UTC).plusMinutes(10));
+        seedCode("alice@example.com", "123456");
 
         EmailVerificationCodeException exception = null;
         for (int attempt = 1; attempt <= 5; attempt++) {
@@ -140,13 +159,13 @@ class UserRegistrationIntegrationTest {
         }
 
         assertEquals(EmailVerificationCodeException.Failure.ATTEMPTS_EXCEEDED, exception.getFailure());
-        assertEquals(5, verificationCodeRepository.findAll().getFirst().getAttempts());
+        assertEquals(5, code("alice@example.com").attempts());
         assertEquals(0, userRepository.count());
     }
 
     @Test
     void should_reject_reused_code() {
-        seedCode("alice@example.com", "123456", LocalDateTime.now(ZoneOffset.UTC).plusMinutes(10));
+        seedCode("alice@example.com", "123456");
         userRegistrationService.register(new UserRegisterRequest(
                 "alice_2026",
                 "correct-password",
@@ -169,8 +188,30 @@ class UserRegistrationIntegrationTest {
     }
 
     @Test
+    void should_reset_attempts_when_new_code_replaces_old_code() {
+        String firstVersion = seedCode("alice@example.com", "123456");
+        assertThrows(
+                EmailVerificationCodeException.class,
+                () -> userRegistrationService.register(new UserRegisterRequest(
+                        "alice_2026",
+                        "correct-password",
+                        "alice@example.com",
+                        "654321"
+                ))
+        );
+
+        String secondVersion = seedCode("alice@example.com", "654321");
+        EmailVerificationCodeSnapshot code = code("alice@example.com");
+
+        assertNotEquals(firstVersion, secondVersion);
+        assertEquals(secondVersion, code.version());
+        assertEquals(0, code.attempts());
+        assertNull(code.usedAt());
+    }
+
+    @Test
     void should_allow_only_one_success_for_concurrent_duplicate_registration() throws Exception {
-        seedCode("alice@example.com", "123456", LocalDateTime.now(ZoneOffset.UTC).plusMinutes(10));
+        seedCode("alice@example.com", "123456");
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
@@ -203,21 +244,29 @@ class UserRegistrationIntegrationTest {
 
             assertEquals(1, successes);
             assertEquals(1, userRepository.count());
-            assertTrue(verificationCodeRepository.findAll().getFirst().isUsed());
+            assertNotNull(code("alice@example.com").usedAt());
         } finally {
             executor.shutdownNow();
         }
     }
 
-    private VerificationCodeEntity seedCode(String email, String code, LocalDateTime expiresAt) {
-        VerificationCodeEntity verificationCode = new VerificationCodeEntity(
-                email,
-                VerificationCodePurpose.REGISTER,
-                passwordHasher.hash(code),
-                expiresAt,
-                null
-        );
-        return verificationCodeRepository.save(verificationCode);
+    private String seedCode(String email, String code) {
+        String key = KEY_PREFIX + email;
+        String version = UUID.randomUUID().toString();
+        Map<String, String> values = new HashMap<>();
+        values.put("codeHash", passwordHasher.hash(code));
+        values.put("version", version);
+        values.put("attempts", "0");
+        values.put("usedAt", "");
+        redisTemplate.opsForHash().putAll(key, values);
+        redisTemplate.expire(key, Duration.ofSeconds(300));
+        return version;
+    }
+
+    private EmailVerificationCodeSnapshot code(String email) {
+        return emailVerificationCodeStore
+                .find(email, VerificationCodePurpose.REGISTER)
+                .orElseThrow();
     }
 
     private void createUsersTable() {

@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.example.music.user.exception.UserAlreadyExistsException;
 import org.example.music.verification.exception.EmailVerificationCodeException;
+import org.example.music.verification.exception.VerificationCodeStoreUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -79,12 +80,11 @@ public class GlobalExceptionHandler {
     ) {
         HttpStatus status = switch (exception.getFailure()) {
             case ALREADY_USED -> HttpStatus.CONFLICT;
-            case EXPIRED, INVALID -> HttpStatus.valueOf(422);
+            case INVALID -> HttpStatus.valueOf(422);
             case ATTEMPTS_EXCEEDED -> HttpStatus.TOO_MANY_REQUESTS;
         };
         String code = switch (exception.getFailure()) {
             case ALREADY_USED -> "EMAIL_CODE_ALREADY_USED";
-            case EXPIRED -> "EMAIL_CODE_EXPIRED";
             case INVALID -> "EMAIL_CODE_INVALID";
             case ATTEMPTS_EXCEEDED -> "EMAIL_CODE_ATTEMPTS_EXCEEDED";
         };
@@ -94,6 +94,26 @@ public class GlobalExceptionHandler {
                 code,
                 "Email verification failed",
                 exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(VerificationCodeStoreUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleVerificationCodeStoreUnavailable(
+            VerificationCodeStoreUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Email verification code store unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "VERIFICATION_CODE_STORE_UNAVAILABLE",
+                "Verification code store unavailable",
+                "Email verification is temporarily unavailable"
         ));
     }
 
