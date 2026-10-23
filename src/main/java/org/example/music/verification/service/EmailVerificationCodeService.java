@@ -32,7 +32,15 @@ public class EmailVerificationCodeService {
     }
 
     public VerifiedEmailCode validate(String email, String code) {
-        EmailVerificationCodeSnapshot snapshot = find(email);
+        return validate(email, code, VerificationCodePurpose.REGISTER);
+    }
+
+    public VerifiedEmailCode validate(
+            String email,
+            String code,
+            VerificationCodePurpose purpose
+    ) {
+        EmailVerificationCodeSnapshot snapshot = find(email, purpose);
         if (snapshot.usedAt() != null) {
             throw new EmailVerificationCodeException(
                     EmailVerificationCodeException.Failure.ALREADY_USED,
@@ -44,7 +52,7 @@ public class EmailVerificationCodeService {
         }
 
         if (!passwordHasher.matches(code, snapshot.codeHash())) {
-            int attempts = incrementFailedAttempts(email, snapshot.version());
+            int attempts = incrementFailedAttempts(email, purpose, snapshot.version());
             if (attempts >= MAX_ATTEMPTS) {
                 throw attemptsExceededException();
             }
@@ -54,17 +62,28 @@ public class EmailVerificationCodeService {
             );
         }
 
-        return new VerifiedEmailCode(email, snapshot.version());
+        return new VerifiedEmailCode(email, snapshot.version(), purpose);
+    }
+
+    public boolean consume(VerifiedEmailCode verifiedEmailCode) {
+        try {
+            return emailVerificationCodeStore.consume(
+                    verifiedEmailCode.email(),
+                    verifiedEmailCode.purpose(),
+                    verifiedEmailCode.version(),
+                    Instant.now()
+            );
+        } catch (DataAccessException exception) {
+            throw new VerificationCodeStoreUnavailableException(
+                    "Email verification code store is unavailable",
+                    exception
+            );
+        }
     }
 
     public void consumeAfterCommit(VerifiedEmailCode verifiedEmailCode) {
         try {
-            boolean consumed = emailVerificationCodeStore.consume(
-                    verifiedEmailCode.email(),
-                    VerificationCodePurpose.REGISTER,
-                    verifiedEmailCode.version(),
-                    Instant.now()
-            );
+            boolean consumed = consume(verifiedEmailCode);
             if (!consumed) {
                 LOGGER.warn(
                         "Email verification code was not consumed after registration commit, traceId={}, reason={}",
@@ -82,11 +101,14 @@ public class EmailVerificationCodeService {
         }
     }
 
-    private EmailVerificationCodeSnapshot find(String email) {
+    private EmailVerificationCodeSnapshot find(
+            String email,
+            VerificationCodePurpose purpose
+    ) {
         try {
             Optional<EmailVerificationCodeSnapshot> snapshot = emailVerificationCodeStore.find(
                     email,
-                    VerificationCodePurpose.REGISTER
+                    purpose
             );
             return snapshot.orElseThrow(() -> new EmailVerificationCodeException(
                     EmailVerificationCodeException.Failure.INVALID,
@@ -100,11 +122,15 @@ public class EmailVerificationCodeService {
         }
     }
 
-    private int incrementFailedAttempts(String email, String version) {
+    private int incrementFailedAttempts(
+            String email,
+            VerificationCodePurpose purpose,
+            String version
+    ) {
         try {
             int attempts = emailVerificationCodeStore.incrementFailedAttempts(
                     email,
-                    VerificationCodePurpose.REGISTER,
+                    purpose,
                     version
             );
             if (attempts < 0) {

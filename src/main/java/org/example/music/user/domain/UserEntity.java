@@ -27,7 +27,7 @@ public class UserEntity {
     private String email;
 
     @Column(name = "password_token", nullable = false)
-    private String passwordToken;
+    private String passwordHash;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "user_role", nullable = false, length = 10)
@@ -45,15 +45,15 @@ public class UserEntity {
     protected UserEntity() {
     }
 
-    public UserEntity(String username, String email, String passwordToken, UserRole userRole) {
+    public UserEntity(String username, String email, String passwordHash, UserRole userRole) {
         this.username = username;
         this.email = email;
-        this.passwordToken = passwordToken;
+        this.passwordHash = passwordHash;
         this.userRole = userRole;
     }
 
-    public static UserEntity create(String username, String email, String passwordToken) {
-        UserEntity user = new UserEntity(username, email, passwordToken, UserRole.USER);
+    public static UserEntity create(String username, String email, String passwordHash) {
+        UserEntity user = new UserEntity(username, email, passwordHash, UserRole.USER);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         user.createdAt = now;
         user.updatedAt = now;
@@ -72,8 +72,8 @@ public class UserEntity {
         return email;
     }
 
-    public String getPasswordToken() {
-        return passwordToken;
+    public String getPasswordHash() {
+        return passwordHash;
     }
 
     public UserRole getUserRole() {

@@ -8,14 +8,14 @@
 - Content-Type：`application/json`
 - 成功状态码：`200 OK`
 
-同步生成并发送邮箱验证码。当前只支持注册用途。
+同步生成并发送邮箱验证码。支持 `REGISTER` 和 `LOGIN` 用途。
 
 ## 请求字段
 
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
 | `email` | string | 是 | 合法邮箱；最多 120 个字符；规范化为小写 |
-| `purpose` | enum | 是 | 当前仅允许 `REGISTER` |
+| `purpose` | enum | 是 | 允许 `REGISTER`、`LOGIN` |
 
 ```json
 {
@@ -70,8 +70,8 @@
 
 | 范围 | 限制 |
 | --- | --- |
-| 同一邮箱 + `REGISTER` | 60 秒 1 次 |
-| 同一邮箱 + `REGISTER` | 每 UTC 日 10 次 |
+| 同一邮箱 + 当前用途 | 60 秒 1 次 |
+| 同一邮箱 + 当前用途 | 每 UTC 日 10 次 |
 | 同一客户端 IP | 每分钟 5 次 |
 
 当前直接暴露服务时使用 TCP `remoteAddr` 作为客户端 IP。后续接入可信反向代理后，由 `ClientIpResolver` 解析代理转发头。
@@ -80,7 +80,7 @@
 
 - 使用 `SecureRandom` 生成 6 位数字验证码。
 - Redis 只保存 BCrypt 摘要。
-- Redis key：`music:verification:code:REGISTER:<normalized-email>`。
+- Redis key：`music:verification:code:<PURPOSE>:<normalized-email>`。
 - TTL 为 300 秒。
 - 发送成功后，注册接口可以在数据库提交成功后消费该验证码。
 - 发送失败时按版本删除刚写入的验证码，并返回 502。

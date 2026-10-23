@@ -1,6 +1,8 @@
 package org.example.music.user.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -13,6 +15,10 @@ import org.example.music.config.SecurityConfig;
 import org.example.music.user.domain.UserRole;
 import org.example.music.user.dto.UserRegisterRequest;
 import org.example.music.user.dto.UserRegisterResponse;
+import org.example.music.common.web.ClientIpResolver;
+import org.example.music.user.dto.LoginRequest;
+import org.example.music.user.dto.LoginResponse;
+import org.example.music.user.service.UserLoginService;
 import org.example.music.user.service.UserRegistrationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +37,12 @@ class AuthControllerTest {
 
     @MockitoBean
     private UserRegistrationService userRegistrationService;
+
+    @MockitoBean
+    private UserLoginService userLoginService;
+
+    @MockitoBean
+    private ClientIpResolver clientIpResolver;
 
     @Test
     void should_register_user_without_authentication_when_request_is_valid() throws Exception {
@@ -110,5 +122,44 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.errors.username").exists());
 
         verifyNoInteractions(userRegistrationService);
+    }
+
+    @Test
+    void should_login_without_authentication_when_request_is_valid() throws Exception {
+        when(clientIpResolver.resolve(any())).thenReturn("198.51.100.10");
+        when(userLoginService.login(any(LoginRequest.class), eq("198.51.100.10")))
+                .thenReturn(LoginResponse.authenticated(null));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "loginType": "USERNAME_PASSWORD",
+                                  "account": "alice",
+                                  "password": "correct-password"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("AUTHENTICATED"));
+
+        verify(userLoginService).login(any(LoginRequest.class), eq("198.51.100.10"));
+    }
+
+    @Test
+    void should_return_400_problem_when_login_fields_do_not_match_type() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "loginType": "EMAIL_CODE",
+                                  "email": "alice@example.com"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors.loginFieldsValid").exists());
+
+        verifyNoInteractions(userLoginService);
     }
 }

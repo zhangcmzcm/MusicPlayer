@@ -6,6 +6,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.example.music.email.exception.EmailSendFailedException;
 import org.example.music.email.exception.SendCodeRateLimitedException;
+import org.example.music.user.exception.AuthStateStoreUnavailableException;
+import org.example.music.user.exception.InvalidCredentialsException;
+import org.example.music.user.exception.LoginRateLimitedException;
+import org.example.music.user.exception.LoginTicketInvalidException;
+import org.example.music.user.exception.RoleSelectionNotAllowedException;
 import org.example.music.user.exception.UserAlreadyExistsException;
 import org.example.music.verification.exception.EmailVerificationCodeException;
 import org.example.music.verification.exception.VerificationCodeStoreUnavailableException;
@@ -97,6 +102,85 @@ public class GlobalExceptionHandler {
                 code,
                 "Email verification failed",
                 exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidCredentials(
+            InvalidCredentialsException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.UNAUTHORIZED,
+                "INVALID_CREDENTIALS",
+                "Authentication failed",
+                "Invalid username, email, password, or verification code"
+        ));
+    }
+
+    @ExceptionHandler(LoginTicketInvalidException.class)
+    public ResponseEntity<ProblemDetail> handleLoginTicketInvalid(
+            LoginTicketInvalidException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.UNAUTHORIZED,
+                "LOGIN_TICKET_INVALID",
+                "Login ticket invalid",
+                "Login ticket is invalid, expired, or already used"
+        ));
+    }
+
+    @ExceptionHandler(RoleSelectionNotAllowedException.class)
+    public ResponseEntity<ProblemDetail> handleRoleSelectionNotAllowed(
+            RoleSelectionNotAllowedException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.FORBIDDEN,
+                "ROLE_SELECTION_NOT_ALLOWED",
+                "Role selection denied",
+                "Selected login role is not allowed"
+        ));
+    }
+
+    @ExceptionHandler(LoginRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleLoginRateLimited(
+            LoginRateLimitedException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = problem(
+                request,
+                HttpStatus.TOO_MANY_REQUESTS,
+                "LOGIN_RATE_LIMITED",
+                "Login rate limited",
+                exception.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()))
+                .body(problem);
+    }
+
+    @ExceptionHandler(AuthStateStoreUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleAuthStateStoreUnavailable(
+            AuthStateStoreUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Authentication state store unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "AUTH_STATE_STORE_UNAVAILABLE",
+                "Authentication state store unavailable",
+                "Login is temporarily unavailable"
         ));
     }
 
