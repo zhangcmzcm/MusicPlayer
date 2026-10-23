@@ -4,12 +4,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.example.music.email.exception.EmailSendFailedException;
+import org.example.music.email.exception.SendCodeRateLimitedException;
 import org.example.music.user.exception.UserAlreadyExistsException;
 import org.example.music.verification.exception.EmailVerificationCodeException;
 import org.example.music.verification.exception.VerificationCodeStoreUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -94,6 +97,44 @@ public class GlobalExceptionHandler {
                 code,
                 "Email verification failed",
                 exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(SendCodeRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleSendCodeRateLimited(
+            SendCodeRateLimitedException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = problem(
+                request,
+                HttpStatus.TOO_MANY_REQUESTS,
+                "SEND_CODE_TOO_FREQUENTLY",
+                "Verification code rate limited",
+                exception.getMessage()
+        );
+        problem.setProperty("scope", exception.getScope().name());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()))
+                .body(problem);
+    }
+
+    @ExceptionHandler(EmailSendFailedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailSendFailed(
+            EmailSendFailedException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Email verification code delivery failed, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.BAD_GATEWAY,
+                "EMAIL_SEND_FAILED",
+                "Email delivery failed",
+                "The email could not be delivered"
         ));
     }
 

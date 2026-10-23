@@ -1,5 +1,6 @@
 package org.example.music.verification.repository;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,18 @@ import org.springframework.stereotype.Component;
 public class RedisEmailVerificationCodeStore implements EmailVerificationCodeStore {
 
     private static final String KEY_PREFIX = "music:verification:code:";
+    private static final Duration CODE_TTL = Duration.ofSeconds(300);
+    private static final RedisScript<Long> SAVE = new DefaultRedisScript<>(
+            """
+            redis.call('HSET', KEYS[1], 'codeHash', ARGV[1])
+            redis.call('HSET', KEYS[1], 'version', ARGV[2])
+            redis.call('HSET', KEYS[1], 'attempts', '0')
+            redis.call('HSET', KEYS[1], 'usedAt', '')
+            redis.call('EXPIRE', KEYS[1], ARGV[3])
+            return 1
+            """,
+            Long.class
+    );
     private static final RedisScript<Long> INCREMENT_FAILED_ATTEMPTS = new DefaultRedisScript<>(
             """
             if redis.call('HEXISTS', KEYS[1], 'version') == 0 then
@@ -43,6 +56,19 @@ public class RedisEmailVerificationCodeStore implements EmailVerificationCodeSto
             """,
             Long.class
     );
+    private static final RedisScript<Long> REMOVE_IF_VERSION = new DefaultRedisScript<>(
+            """
+            if redis.call('EXISTS', KEYS[1]) == 0 then
+              return 0
+            end
+            if redis.call('HGET', KEYS[1], 'version') ~= ARGV[1] then
+              return -1
+            end
+            redis.call('DEL', KEYS[1])
+            return 1
+            """,
+            Long.class
+    );
 
     private final StringRedisTemplate redisTemplate;
 
@@ -66,6 +92,27 @@ public class RedisEmailVerificationCodeStore implements EmailVerificationCodeSto
     }
 
     @Override
+    public Instant save(
+            String email,
+            VerificationCodePurpose purpose,
+            String codeHash,
+            String version
+    ) {
+        Instant expiresAt = Instant.now().plus(CODE_TTL);
+        Long result = redisTemplate.execute(
+                SAVE,
+                List.of(key(email, purpose)),
+                codeHash,
+                version,
+                String.valueOf(CODE_TTL.toSeconds())
+        );
+        if (result == null || result != 1L) {
+            throw new IllegalStateException("Redis verification code write was not acknowledged");
+        }
+        return expiresAt;
+    }
+
+    @Override
     public int incrementFailedAttempts(String email, VerificationCodePurpose purpose, String version) {
         Long attempts = redisTemplate.execute(
                 INCREMENT_FAILED_ATTEMPTS,
@@ -82,6 +129,16 @@ public class RedisEmailVerificationCodeStore implements EmailVerificationCodeSto
                 List.of(key(email, purpose)),
                 version,
                 usedAt.toString()
+        );
+        return result != null && result == 1L;
+    }
+
+    @Override
+    public boolean removeIfVersion(String email, VerificationCodePurpose purpose, String version) {
+        Long result = redisTemplate.execute(
+                REMOVE_IF_VERSION,
+                List.of(key(email, purpose)),
+                version
         );
         return result != null && result == 1L;
     }
