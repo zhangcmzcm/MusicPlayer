@@ -1,4 +1,4 @@
-﻿# 歌曲存储设计
+# 歌曲存储设计
 
 日期：2026-10-24
 
@@ -10,7 +10,7 @@
 
 本设计覆盖：
 
-- 管理员上传 MP3、FLAC 等音频文件后的存储方式。
+- 管理员上传 MP3 和 FLAC 音频文件后的存储方式。
 - 音频、封面和歌曲元数据的职责边界。
 - ID3 元数据自动提取和管理员确认流程。
 - MySQL 与 MinIO 之间的最终一致性处理。
@@ -30,7 +30,7 @@
 ## 2. 已确认背景
 
 - 项目是个人音乐播放器后端，不是大规模商业平台。
-- 歌曲文件由管理员上传，初始支持 MP3、FLAC 等常见音频格式。
+- 歌曲文件由管理员上传，初始支持 MP3 和 FLAC。
 - Spring Boot API、MySQL、Redis 和 MinIO 全部部署在无公网 IP 的服务器。
 - 阿里云服务器只负责 TLS 和反向代理，不保存核心数据。
 - 歌曲信息和歌曲播放都需要登录。
@@ -91,8 +91,8 @@ Spring Boot API ─────────► MySQL：歌曲、媒体资产、�
 | --- | --- |
 | `id` | `BIGINT` 自增 ID，与当前 `users.id` 类型一致 |
 | `title` | 歌曲标题 |
-| `artist_id` | 歌曲主艺术家 ID |
-| `album_id` | 可选专辑 ID |
+| `artist_name` | 主艺术家名称 |
+| `album_name` | 可选专辑名称 |
 | `duration_ms` | 歌曲时长，单位毫秒 |
 | `track_number` | 可选专辑曲序 |
 | `disc_number` | 可选碟片序号 |
@@ -107,7 +107,7 @@ Spring Boot API ─────────► MySQL：歌曲、媒体资产、�
 
 标题、艺术家、专辑、时长等可检索信息必须保存在结构化列中，不能只保存在 `id3_metadata` 中。
 
-`artist_id` 和 `album_id` 使用可空的 `BIGINT`。艺术家和专辑的实体、唯一性规则及其管理接口属于独立设计；歌曲存储实现不得自行创建艺术家或专辑记录。
+ID3 自动提取的艺术家和专辑先以字符串保存，避免歌曲导入依赖尚未设计的艺术家和专辑管理模块。未来建立艺术家和专辑实体时，可通过独立迁移把名称关联迁移为 ID 关联；媒体资产设计不因此改变。
 
 ### 5.2 `media_assets`
 
@@ -141,7 +141,7 @@ Spring Boot API ─────────► MySQL：歌曲、媒体资产、�
 | 字段 | 含义 |
 | --- | --- |
 | `id` | `BIGINT` 自增 ID |
-| `upload_id` | 客户端或后端生成的唯一导入幂等键 |
+| `upload_id` | 客户端为每次导入生成的 UUID，作为唯一导入幂等键 |
 | `status` | `UPLOADING`、`VALIDATING`、`EXTRACTING`、`READY`、`FAILED` |
 | `original_filename` | 原始文件名 |
 | `content_type` | 声明的文件类型 |
@@ -162,19 +162,21 @@ Spring Boot API ─────────► MySQL：歌曲、媒体资产、�
 
 ```text
 music-audio/
-  audio/{uploadId}/{sha256}.mp3
+  audio/{uploadId}/{sha256}.{format}
 
 music-covers/
-  covers/{uploadId}/{sha256}.jpg
+  covers/{uploadId}/{sha256}.{extension}
 ```
 
 规则：
 
-- `uploadId` 是内部随机 ID，不作为公开 API 资源 ID。
+- `uploadId` 是客户端为每次导入生成的 UUID，不作为歌曲等公开 API 资源 ID。
 - 对象键由后端生成，客户端不能指定 bucket 或完整对象键。
 - 对象键包含 `sha256`，用于完整性核对和问题排查。
 - bucket 禁止匿名读取和匿名写入。
 - MinIO 管理端口不通过阿里云反向代理暴露。
+- 初始音频格式仅允许 MP3 和 FLAC；初始封面格式仅允许 JPEG、PNG 和 WebP。
+- 默认音频文件上限为 200 MiB，封面文件上限为 20 MiB；两个上限通过配置调整。
 - 初始设计不允许 bucket 版本化；不可变对象键和数据库软删除足以满足当前需求。
 - 删除数据库引用后仍存在的对象由清理任务处理。
 
@@ -212,7 +214,7 @@ MySQL 与 MinIO 无法进行原子事务，因此采用补偿处理：
 - 最终数据库事务失败：异步删除已写入对象。
 - 补偿删除失败：保留待清理记录，由定时任务重试。
 - 定时任务删除超过 24 小时且没有 `media_assets` 引用的对象。
-- 服务重启后根据 `media_imports.status` 恢复或失败化未完成导入。
+- 服务重启后，`UPLOADING`、`VALIDATING` 和 `EXTRACTING` 状态统一标记为 `FAILED`，错误码为 `IMPORT_INTERRUPTED`，并清理未确认对象；客户端需要使用新的 `uploadId` 重新导入。
 
 ## 8. 歌曲获取与 Range 播放
 
@@ -236,7 +238,7 @@ MySQL 与 MinIO 无法进行原子事务，因此采用补偿处理：
 | --- | --- | --- |
 | 无 `Range` | `200 OK` | 完整对象长度 |
 | 有效单字节区间 | `206 Partial Content` | `Content-Range`、区间长度 |
-| 无效或越界区间 | `416 Range Not Satisfiable` | RFC 9457 ProblemDetail |
+| 无效或越界区间 | `416 Range Not Satisfiable` | `RANGE_NOT_SATISFIABLE` |
 | 歌曲或对象不存在 | `404 Not Found` | `TRACK_NOT_FOUND` |
 | MinIO 不可用 | `503 Service Unavailable` | `MEDIA_STORAGE_UNAVAILABLE` |
 
@@ -295,6 +297,8 @@ S3_COVERS_BUCKET
 S3_REGION
 S3_CONNECT_TIMEOUT
 S3_READ_TIMEOUT
+UPLOAD_MAX_AUDIO_BYTES
+UPLOAD_MAX_COVER_BYTES
 ```
 
 `.env.example` 只保存占位值。Docker Compose 增加 MinIO 服务、持久化数据卷和健康检查，但不包含真实密钥。
