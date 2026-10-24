@@ -29,7 +29,6 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -74,10 +73,6 @@ class UserLoginIntegrationTest {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
     @MockitoBean
     private SmtpEmailVerificationCodeSender emailVerificationCodeSender;
 
@@ -96,7 +91,6 @@ class UserLoginIntegrationTest {
 
     @BeforeEach
     void resetDatabase() {
-        createUsersTable();
         userRepository.deleteAll();
         deleteKeys("music:auth:*");
         deleteKeys("music:verification:code:*");
@@ -254,24 +248,6 @@ class UserLoginIntegrationTest {
                 passwordHasher.hash("correct-password"),
                 role
         ));
-    }
-
-    private void createUsersTable() {
-        jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS `users` (
-                  `id` int NOT NULL AUTO_INCREMENT,
-                  `username` varchar(80) NOT NULL,
-                  `email` varchar(120) DEFAULT NULL,
-                  `password_token` varchar(255) NOT NULL,
-                  `user_role` enum('USER','ADMIN') NOT NULL DEFAULT 'USER',
-                  `created_at` datetime DEFAULT NULL,
-                  `updated_at` datetime DEFAULT NULL,
-                  `last_login_at` datetime DEFAULT NULL,
-                  PRIMARY KEY (`id`),
-                  UNIQUE KEY `ix_users_username` (`username`),
-                  UNIQUE KEY `ix_users_email` (`email`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                """);
     }
 
     private void deleteKeys(String pattern) {

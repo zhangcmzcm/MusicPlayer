@@ -37,7 +37,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -77,10 +76,6 @@ class UserRegistrationIntegrationTest {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
     @DynamicPropertySource
     static void configureContainers(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
@@ -96,8 +91,7 @@ class UserRegistrationIntegrationTest {
 
     @BeforeEach
     void resetDatabase() {
-        createUsersTable();
-        jdbcTemplate.update("DELETE FROM users");
+        userRepository.deleteAll();
         Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
         if (keys != null && !keys.isEmpty()) {
             redisTemplate.delete(keys);
@@ -174,7 +168,7 @@ class UserRegistrationIntegrationTest {
                 "alice@example.com",
                 "123456"
         ));
-        jdbcTemplate.update("DELETE FROM users");
+        userRepository.deleteAll();
 
         EmailVerificationCodeException exception = assertThrows(
                 EmailVerificationCodeException.class,
@@ -271,21 +265,4 @@ class UserRegistrationIntegrationTest {
                 .orElseThrow();
     }
 
-    private void createUsersTable() {
-        jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS `users` (
-                  `id` int NOT NULL AUTO_INCREMENT COMMENT '用户ID',
-                  `username` varchar(80) NOT NULL COMMENT '用户名',
-                  `email` varchar(120) DEFAULT NULL COMMENT '邮箱',
-                  `password_token` varchar(255) NOT NULL COMMENT '密码加密token',
-                  `user_role` enum('USER','ADMIN') NOT NULL DEFAULT 'USER' COMMENT '用户最高权限角色',
-                  `created_at` datetime DEFAULT NULL COMMENT '创建时间',
-                  `updated_at` datetime DEFAULT NULL COMMENT '更新时间',
-                  `last_login_at` datetime DEFAULT NULL COMMENT '上次登录时间',
-                  PRIMARY KEY (`id`),
-                  UNIQUE KEY `ix_users_username` (`username`),
-                  UNIQUE KEY `ix_users_email` (`email`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                """);
-    }
 }
