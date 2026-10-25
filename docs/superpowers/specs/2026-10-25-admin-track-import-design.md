@@ -142,7 +142,7 @@
 | 文件超过配置上限 | `413` | `UPLOAD_TOO_LARGE` |
 | 扩展名、MIME 或魔数不支持 | `415` | `UNSUPPORTED_AUDIO_FORMAT` |
 | 音频损坏或没有有效时长 | `422` | `AUDIO_METADATA_INVALID` |
-| 导入限流 | `429` | `TRACK_IMPORT_RATE_LIMITED` |
+| 导入限流 | `429` | `TRACK_IMPORT_RATE_LIMITED`，响应包含 `Retry-After` |
 | MinIO 不可用 | `503` | `MEDIA_STORAGE_UNAVAILABLE` |
 | MySQL 或导入状态存储不可用 | `503` | `MEDIA_IMPORT_STORE_UNAVAILABLE` |
 | 补偿删除对象失败 | `503` | `MEDIA_OBJECT_CLEANUP_FAILED` |
@@ -305,13 +305,15 @@ Controller 不处理导入业务；Service 不返回 JPA Entity；Repository 不
 
 | 失败点 | 处理 |
 | --- | --- |
-| 参数或文件校验失败 | 不创建最终歌曲，记录 `FAILED` 或直接返回请求错误 |
+| multipart 在进入 Service 前被容器拒绝 | 不创建 `media_imports`，返回 `400` 或 `413` |
+| `uploadId` 无效或缺少文件 | 不创建 `media_imports`，返回 `400 VALIDATION_FAILED` |
+| 大小、扩展名、MIME 或魔数校验失败 | 创建或重置的导入记录标记为 `FAILED`，返回 `413` 或 `415` |
 | 临时文件写入失败 | 删除未完成临时文件 |
 | 元数据提取失败 | 删除临时文件，状态 `FAILED`，错误码 `AUDIO_METADATA_INVALID` |
-| 音频上传 MinIO 失败 | 删除已上传对象和临时文件 |
-| 封面上传失败 | 删除音频对象和临时文件 |
-| 最终数据库事务失败 | 删除 MinIO 对象和临时文件 |
-| 补偿删除失败 | 状态保持 `FAILED`，记录 `MEDIA_OBJECT_CLEANUP_FAILED` |
+| 音频上传 MinIO 失败 | 删除已上传对象和临时文件，导入标记为 `FAILED MEDIA_STORAGE_UNAVAILABLE` |
+| 封面上传失败 | 删除音频对象和临时文件，导入标记为 `FAILED MEDIA_STORAGE_UNAVAILABLE` |
+| 最终数据库事务失败 | 删除 MinIO 对象和临时文件；数据库可用时以独立事务标记 `FAILED MEDIA_IMPORT_STORE_UNAVAILABLE` |
+| 补偿删除失败 | 状态保持 `FAILED`，记录 `MEDIA_OBJECT_CLEANUP_FAILED`；数据库不可用时只记录应用日志和指标 |
 | 数据库提交成功后临时文件删除失败 | 歌曲不回滚，记录清理警告 |
 
 ## 10. 可观测性
