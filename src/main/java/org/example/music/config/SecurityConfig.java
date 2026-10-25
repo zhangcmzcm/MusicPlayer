@@ -4,12 +4,14 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import javax.crypto.spec.SecretKeySpec;
+import org.example.music.common.security.SecurityProblemResponseWriter;
 import org.example.music.security.JwtAuthenticationConverterProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -26,6 +28,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -65,9 +68,15 @@ public class SecurityConfig {
     }
 
     @Bean
+    public SecurityProblemResponseWriter securityProblemResponseWriter() {
+        return new SecurityProblemResponseWriter();
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationConverterProvider jwtAuthenticationConverterProvider
+            JwtAuthenticationConverterProvider jwtAuthenticationConverterProvider,
+            SecurityProblemResponseWriter securityProblemResponseWriter
     ) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
@@ -81,6 +90,23 @@ public class SecurityConfig {
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint((request, response, exception) -> securityProblemResponseWriter.write(
+                                request,
+                                response,
+                                org.springframework.http.HttpStatus.UNAUTHORIZED,
+                                "UNAUTHORIZED",
+                                "Authentication required",
+                                "A valid Bearer token is required"
+                        ))
+                        .accessDeniedHandler((request, response, exception) -> securityProblemResponseWriter.write(
+                                request,
+                                response,
+                                org.springframework.http.HttpStatus.FORBIDDEN,
+                                "FORBIDDEN",
+                                "Access denied",
+                                "You do not have permission to perform this operation"
+                        )))
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverterProvider.get())
                 ))

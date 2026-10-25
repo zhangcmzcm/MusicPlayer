@@ -5,6 +5,16 @@ import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.example.music.email.exception.EmailSendFailedException;
+import org.example.music.storage.exception.AudioObjectNotFoundException;
+import org.example.music.storage.exception.AudioStorageUnavailableException;
+import org.example.music.track.exception.AudioMetadataInvalidException;
+import org.example.music.track.exception.ImportConflictException;
+import org.example.music.track.exception.ImportInProgressException;
+import org.example.music.track.exception.MediaImportStoreUnavailableException;
+import org.example.music.track.exception.MediaObjectCleanupFailedException;
+import org.example.music.track.exception.TrackImportRateLimitedException;
+import org.example.music.track.exception.UnsupportedAudioFormatException;
+import org.example.music.track.exception.UploadTooLargeException;
 import org.example.music.email.exception.SendCodeRateLimitedException;
 import org.example.music.user.exception.AuthStateStoreUnavailableException;
 import org.example.music.user.exception.InvalidCredentialsException;
@@ -22,6 +32,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -242,6 +257,237 @@ public class GlobalExceptionHandler {
         ));
     }
 
+
+    @ExceptionHandler(UploadTooLargeException.class)
+    public ResponseEntity<ProblemDetail> handleUploadTooLarge(
+            UploadTooLargeException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "UPLOAD_TOO_LARGE",
+                "Audio upload too large",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ProblemDetail> handleMultipartTooLarge(
+            MaxUploadSizeExceededException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "UPLOAD_TOO_LARGE",
+                "Audio upload too large",
+                "The uploaded file exceeds the configured size limit"
+        ));
+    }
+
+    @ExceptionHandler(UnsupportedAudioFormatException.class)
+    public ResponseEntity<ProblemDetail> handleUnsupportedAudio(
+            UnsupportedAudioFormatException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "UNSUPPORTED_AUDIO_FORMAT",
+                "Unsupported audio format",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(AudioMetadataInvalidException.class)
+    public ResponseEntity<ProblemDetail> handleAudioMetadataInvalid(
+            AudioMetadataInvalidException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "AUDIO_METADATA_INVALID",
+                "Audio metadata invalid",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(ImportConflictException.class)
+    public ResponseEntity<ProblemDetail> handleImportConflict(
+            ImportConflictException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.CONFLICT,
+                "IMPORT_CONFLICT",
+                "Media import conflict",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(ImportInProgressException.class)
+    public ResponseEntity<ProblemDetail> handleImportInProgress(
+            ImportInProgressException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.CONFLICT,
+                "IMPORT_IN_PROGRESS",
+                "Media import in progress",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(TrackImportRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleTrackImportRateLimited(
+            TrackImportRateLimitedException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = problem(
+                request,
+                HttpStatus.TOO_MANY_REQUESTS,
+                "TRACK_IMPORT_RATE_LIMITED",
+                "Track import rate limited",
+                exception.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()))
+                .body(problem);
+    }
+
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ProblemDetail> handleMissingRequestParameter(
+            MissingServletRequestParameterException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.BAD_REQUEST,
+                "VALIDATION_FAILED",
+                "Request validation failed",
+                "A required request parameter is missing"
+        ));
+    }
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ProblemDetail> handleMissingRequestPart(
+            MissingServletRequestPartException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.BAD_REQUEST,
+                "VALIDATION_FAILED",
+                "Request validation failed",
+                "A required multipart field is missing"
+        ));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ProblemDetail> handleArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.BAD_REQUEST,
+                "VALIDATION_FAILED",
+                "Request validation failed",
+                "A request parameter has an invalid format"
+        ));
+    }
+
+    @ExceptionHandler(MediaImportStoreUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleMediaImportStoreUnavailable(
+            MediaImportStoreUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Media import store unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "MEDIA_IMPORT_STORE_UNAVAILABLE",
+                "Media import store unavailable",
+                "The media import could not be completed"
+        ));
+    }
+
+    @ExceptionHandler(AudioStorageUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleAudioStorageUnavailable(
+            AudioStorageUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Audio storage unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "MEDIA_STORAGE_UNAVAILABLE",
+                "Media storage unavailable",
+                "The media storage service is temporarily unavailable"
+        ));
+    }
+
+    @ExceptionHandler(MediaObjectCleanupFailedException.class)
+    public ResponseEntity<ProblemDetail> handleMediaObjectCleanupFailed(
+            MediaObjectCleanupFailedException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Media object cleanup failed, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "MEDIA_OBJECT_CLEANUP_FAILED",
+                "Media object cleanup failed",
+                "The imported media object could not be cleaned up"
+        ));
+    }
+
+    @ExceptionHandler(AudioObjectNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleAudioObjectNotFound(
+            AudioObjectNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.NOT_FOUND,
+                "TRACK_NOT_FOUND",
+                "Track not found",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ProblemDetail> handleAccessDenied(
+            AccessDeniedException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.FORBIDDEN,
+                "FORBIDDEN",
+                "Access denied",
+                "You do not have permission to perform this operation"
+        ));
+    }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(
             Exception exception,
