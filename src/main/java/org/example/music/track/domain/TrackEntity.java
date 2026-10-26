@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -64,6 +65,10 @@ public class TrackEntity {
 
     @Column(name = "updated_by", nullable = false)
     private Integer updatedBy;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     protected TrackEntity() {
     }
@@ -123,6 +128,28 @@ public class TrackEntity {
                 createdAt,
                 createdBy
         );
+    }
+
+    public void updateDraft(
+            String title,
+            String artistName,
+            String albumName,
+            Integer trackNumber,
+            Integer discNumber,
+            LocalDateTime updatedAt,
+            Integer updatedBy
+    ) {
+        this.title = title;
+        this.artistName = artistName;
+        this.albumName = albumName;
+        this.trackNumber = trackNumber;
+        this.discNumber = discNumber;
+        this.updatedAt = updatedAt;
+        this.updatedBy = updatedBy;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 
     public Long getId() {

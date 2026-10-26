@@ -14,6 +14,11 @@ import org.example.music.track.exception.MediaImportStoreUnavailableException;
 import org.example.music.track.exception.MediaObjectCleanupFailedException;
 import org.example.music.track.exception.TrackImportRateLimitedException;
 import org.example.music.track.exception.UnsupportedAudioFormatException;
+import org.example.music.track.exception.TrackDraftValidationException;
+import org.example.music.track.exception.TrackNotDraftException;
+import org.example.music.track.exception.TrackNotFoundException;
+import org.example.music.track.exception.TrackStoreUnavailableException;
+import org.example.music.track.exception.TrackVersionConflictException;
 import org.example.music.track.exception.UploadTooLargeException;
 import org.example.music.email.exception.SendCodeRateLimitedException;
 import org.example.music.user.exception.AuthStateStoreUnavailableException;
@@ -37,6 +42,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -486,6 +492,99 @@ public class GlobalExceptionHandler {
                 "FORBIDDEN",
                 "Access denied",
                 "You do not have permission to perform this operation"
+        ));
+    }
+
+    @ExceptionHandler(TrackDraftValidationException.class)
+    public ResponseEntity<ProblemDetail> handleTrackDraftValidation(
+            TrackDraftValidationException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.BAD_REQUEST,
+                "VALIDATION_FAILED",
+                "请求校验失败",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(TrackNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleTrackNotFound(
+            TrackNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.NOT_FOUND,
+                "TRACK_NOT_FOUND",
+                "歌曲不存在",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(TrackNotDraftException.class)
+    public ResponseEntity<ProblemDetail> handleTrackNotDraft(
+            TrackNotDraftException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.CONFLICT,
+                "TRACK_NOT_DRAFT",
+                "歌曲不是草稿",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(TrackVersionConflictException.class)
+    public ResponseEntity<ProblemDetail> handleTrackVersionConflict(
+            TrackVersionConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = problem(
+                request,
+                HttpStatus.CONFLICT,
+                "TRACK_VERSION_CONFLICT",
+                "歌曲版本冲突",
+                exception.getMessage()
+        );
+        problem.setProperty("expectedVersion", exception.getExpectedVersion());
+        problem.setProperty("actualVersion", exception.getActualVersion());
+        return response(problem);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetail> handleOptimisticLockingFailure(
+            ObjectOptimisticLockingFailureException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.CONFLICT,
+                "TRACK_VERSION_CONFLICT",
+                "歌曲版本冲突",
+                "歌曲已被其他操作修改，请重新读取后重试"
+        ));
+    }
+
+    @ExceptionHandler(TrackStoreUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleTrackStoreUnavailable(
+            TrackStoreUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Track store unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "TRACK_STORE_UNAVAILABLE",
+                "歌曲存储不可用",
+                "歌曲草稿暂时无法更新"
         ));
     }
     @ExceptionHandler(Exception.class)
