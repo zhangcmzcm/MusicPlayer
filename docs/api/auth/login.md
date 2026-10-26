@@ -113,7 +113,7 @@
 - 算法：HS256。
 - Access Token 有效期：24 小时。
 - 请求使用 `Authorization: Bearer <accessToken>`。
-- Claims：`sub`、`role`、`loginType`、`jti`、`iat`、`exp`。
+- Claims：`sub`、`role`、`loginType`、`tokenVersion`、`jti`、`iat`、`exp`。
 - `loginType` 为原始登录方式，不使用 `ROLE_SELECTION`。
 - 不返回密码摘要、验证码或登录票据摘要。
 

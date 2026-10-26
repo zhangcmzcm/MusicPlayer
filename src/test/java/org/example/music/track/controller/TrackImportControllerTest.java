@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.example.music.common.exception.GlobalExceptionHandler;
 import org.example.music.config.SecurityConfig;
+import org.example.music.security.UserTokenVersionService;
 import org.example.music.track.domain.MediaAssetEntity;
 import org.example.music.track.domain.MediaAssetKind;
 import org.example.music.track.domain.MediaImportEntity;
@@ -52,6 +53,9 @@ class TrackImportControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private UserTokenVersionService userTokenVersionService;
 
     @MockitoBean
     private MediaImportService mediaImportService;

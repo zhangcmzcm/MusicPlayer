@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.List;
 import org.example.music.common.exception.GlobalExceptionHandler;
 import org.example.music.config.SecurityConfig;
+import org.example.music.security.UserTokenVersionService;
 import org.example.music.track.dto.MediaAssetResponse;
 import org.example.music.track.dto.TrackDraftResponse;
 import org.example.music.track.exception.TrackDraftValidationException;
@@ -43,6 +44,9 @@ class TrackDraftControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private UserTokenVersionService userTokenVersionService;
 
     @MockitoBean
     private TrackDraftService trackDraftService;

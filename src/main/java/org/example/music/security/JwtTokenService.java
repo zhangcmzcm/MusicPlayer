@@ -3,6 +3,7 @@ package org.example.music.security;
 import java.time.Instant;
 import java.util.UUID;
 import org.example.music.user.domain.UserRole;
+import org.example.music.security.UserTokenVersionService;
 import org.example.music.user.dto.LoginType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -19,17 +20,20 @@ public class JwtTokenService {
     private final String issuer;
     private final String audience;
     private final long ttlSeconds;
+    private final UserTokenVersionService userTokenVersionService;
 
     public JwtTokenService(
             JwtEncoder jwtEncoder,
             @Value("${app.jwt.issuer}") String issuer,
             @Value("${app.jwt.audience}") String audience,
-            @Value("${app.jwt.ttl-seconds}") long ttlSeconds
+            @Value("${app.jwt.ttl-seconds}") long ttlSeconds,
+            UserTokenVersionService userTokenVersionService
     ) {
         this.jwtEncoder = jwtEncoder;
         this.issuer = issuer;
         this.audience = audience;
         this.ttlSeconds = ttlSeconds;
+        this.userTokenVersionService = userTokenVersionService;
     }
 
     public JwtTokenResult issue(
@@ -47,6 +51,7 @@ public class JwtTokenService {
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
                 .claim("role", role.name())
+                .claim("tokenVersion", userTokenVersionService.current(userId))
                 .claim("loginType", loginType.name())
                 .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();

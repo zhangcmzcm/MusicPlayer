@@ -92,6 +92,14 @@ public class UserEntity {
         return lastLoginAt;
     }
 
+    public void setUserRole(UserRole userRole) {
+        this.userRole = userRole;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
     public void setLastLoginAt(LocalDateTime lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
     }

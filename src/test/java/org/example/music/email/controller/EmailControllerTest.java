@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import org.example.music.common.web.ClientIpResolver;
 import org.example.music.config.SecurityConfig;
+import org.example.music.security.UserTokenVersionService;
 import org.example.music.email.dto.EmailSendCodeRequest;
 import org.example.music.email.dto.EmailSendCodeResponse;
 import org.example.music.email.service.EmailSendCodeService;
@@ -31,6 +32,9 @@ class EmailControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private UserTokenVersionService userTokenVersionService;
 
     @MockitoBean
     private EmailSendCodeService emailSendCodeService;

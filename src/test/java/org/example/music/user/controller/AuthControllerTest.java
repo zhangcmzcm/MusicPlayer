@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 import org.example.music.config.SecurityConfig;
+import org.example.music.security.UserTokenVersionService;
 import org.example.music.user.domain.UserRole;
 import org.example.music.user.dto.UserRegisterRequest;
 import org.example.music.user.dto.UserRegisterResponse;
@@ -34,6 +35,9 @@ class AuthControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private UserTokenVersionService userTokenVersionService;
 
     @MockitoBean
     private UserRegistrationService userRegistrationService;

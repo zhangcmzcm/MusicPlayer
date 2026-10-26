@@ -22,6 +22,9 @@ import org.example.music.track.exception.TrackVersionConflictException;
 import org.example.music.track.exception.UploadTooLargeException;
 import org.example.music.email.exception.SendCodeRateLimitedException;
 import org.example.music.user.exception.AuthStateStoreUnavailableException;
+import org.example.music.user.exception.RoleUpdateForbiddenException;
+import org.example.music.user.exception.SelfRoleModificationException;
+import org.example.music.user.exception.UserNotFoundException;
 import org.example.music.user.exception.InvalidCredentialsException;
 import org.example.music.user.exception.LoginRateLimitedException;
 import org.example.music.user.exception.LoginTicketInvalidException;
@@ -585,6 +588,47 @@ public class GlobalExceptionHandler {
                 "TRACK_STORE_UNAVAILABLE",
                 "歌曲存储不可用",
                 "歌曲草稿暂时无法更新"
+        ));
+    }
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleUserNotFound(
+            UserNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.NOT_FOUND,
+                "USER_NOT_FOUND",
+                "User not found",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(SelfRoleModificationException.class)
+    public ResponseEntity<ProblemDetail> handleSelfRoleModification(
+            SelfRoleModificationException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.FORBIDDEN,
+                "CANNOT_MODIFY_SELF_ROLE",
+                "Role modification denied",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RoleUpdateForbiddenException.class)
+    public ResponseEntity<ProblemDetail> handleRoleUpdateForbidden(
+            RoleUpdateForbiddenException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.FORBIDDEN,
+                "FORBIDDEN",
+                "Access denied",
+                exception.getMessage()
         ));
     }
     @ExceptionHandler(Exception.class)

@@ -6,6 +6,7 @@ import java.util.List;
 import javax.crypto.spec.SecretKeySpec;
 import org.example.music.common.security.SecurityProblemResponseWriter;
 import org.example.music.security.JwtAuthenticationConverterProvider;
+import org.example.music.security.TokenVersionAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +25,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -76,7 +78,8 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationConverterProvider jwtAuthenticationConverterProvider,
-            SecurityProblemResponseWriter securityProblemResponseWriter
+            SecurityProblemResponseWriter securityProblemResponseWriter,
+            TokenVersionAuthenticationFilter tokenVersionAuthenticationFilter
     ) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
@@ -110,6 +113,7 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverterProvider.get())
                 ))
+                .addFilterAfter(tokenVersionAuthenticationFilter, BearerTokenAuthenticationFilter.class)
                 .build();
     }
 }
