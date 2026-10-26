@@ -25,7 +25,7 @@
 - 上传、替换或删除封面。
 - 修改歌曲时长。
 - 修改原始 ID3 元数据。
-- 歌曲发布、归册或状态流转。
+- 歌曲发布、归档或状态流转。
 - 歌曲详情、列表、搜索或播放接口。
 - 并发版本控制或乐观锁。
 
@@ -43,6 +43,7 @@
 - 并发编辑采用最后写入生效，不引入版本号或 `If-Match`。
 - 发布由后续独立接口处理。
 - Request、Response 和 Mapper 使用独立 Java 文件，不定义在 Controller 中。
+- `TrackDraftRequest` 必须区分字段缺失和显式 JSON `null`，因此使用带字段存在标记的 DTO 类，不使用无法区分这两种情况的普通 record。
 
 ## 3. HTTP 契约
 
@@ -144,6 +145,17 @@
 - 其他值必须是大于 0 的整数。
 - 0、负数和其他非法值返回 `400 VALIDATION_FAILED`。
 
+### 4.4 字段存在性
+
+JSON 字段缺失和显式 `null` 具有不同语义，因此 `TrackDraftRequest` 不能使用无法区分这两种情况的普通 record。
+
+请求 DTO 使用字段存在标记：
+
+- 字段未出现在 JSON 中：该字段不参与更新。
+- 字段显式设置为 JSON `null`：该字段参与更新；只有可空字段允许清空。
+- 字段设置为字符串或整数：该字段参与更新并执行校验。
+
+`TrackDraftRequest` 仍然使用独立文件，字段存在标记只存在于 DTO 内部，不暴露给 Controller 或响应。
 ### 4.4 不可变字段
 
 以下字段不接受请求值，也不会被修改：
@@ -190,7 +202,7 @@
 | 组件 | 文件 | 职责 |
 | --- | --- | --- |
 | `TrackDraftController` | `track/controller/TrackDraftController.java` | HTTP 参数绑定、调用 Service、返回 DTO |
-| `TrackDraftRequest` | `track/dto/TrackDraftRequest.java` | JSON 请求字段和校验注解 |
+| `TrackDraftRequest` | `track/dto/TrackDraftRequest.java` | 带字段存在标记的 JSON 请求 DTO 和校验注解 |
 | `TrackDraftResponse` | `track/dto/TrackDraftResponse.java` | 草稿响应结构 |
 | `TrackDraftResponseMapper` | `track/dto/TrackDraftResponseMapper.java` | Entity 和媒体资产映射为 DTO |
 | `TrackDraftService` | `track/service/TrackDraftService.java` | 状态检查、局部更新、结果组装 |
