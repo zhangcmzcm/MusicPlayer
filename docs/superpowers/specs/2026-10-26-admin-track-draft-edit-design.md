@@ -194,8 +194,8 @@ JSON 字段缺失和显式 `null` 具有不同语义，因此 `TrackDraftRequest
 5. 歌曲不存在时抛出 `TrackNotFoundException`。
 6. 歌曲状态不是 `DRAFT` 时抛出 `TrackNotDraftException`。
 7. 根据字段是否缺失、是否为 `null` 应用局部更新规则。
-8. `TrackEntity.updateDraft` 更新允许字段以及 `updatedAt`、`updatedBy`。
-9. 比较请求 `version` 和歌曲当前版本号，不一致时返回 `TRACK_VERSION_CONFLICT`。
+8. 比较请求 `version` 和歌曲当前版本号，不一致时返回 `TRACK_VERSION_CONFLICT`。
+9. `TrackEntity.updateDraft` 更新允许字段以及 `updatedAt`、`updatedBy`。
 10. `TrackDraftTransactionService` 在单个数据库事务中保存歌曲，由 JPA `@Version` 递增版本号。
 11. 查询音频和可选封面媒体资产。
 12. Mapper 将实体和资产映射为 `TrackDraftResponse`。
