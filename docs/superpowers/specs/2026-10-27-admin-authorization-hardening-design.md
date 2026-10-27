@@ -1,0 +1,336 @@
+﻿# 管理员授权安全加固设计
+
+日期：2026-10-27
+
+## 1. 目标与范围
+
+本次重构管理员授权链路，目标是消除角色状态、Token 失效状态和审计写入跨存储、非原子造成的安全问题。
+
+覆盖范围：
+
+- `PATCH /api/v1/users/{id}/role`
+- 管理员角色变更的数据库事务、并发控制和审计
+- 登录签发 JWT 时的角色与授权版本快照
+- 认证请求中的 Token Version 校验和权限生成
+- 环境变量驱动的首个管理员初始化
+- 与上述能力直接相关的迁移、错误协议、API 文档和测试
+
+非目标：
+
+- Refresh Token、无感刷新和独立 Token 吊销接口
+- 用户删除、禁用、批量授权和角色管理界面
+- 用户列表、资料修改和密码修改
+- Redis 分布式限流、验证码、登录 Ticket 等既有非授权用途
+
+## 2. 当前问题与目标不变量
+
+当前实现依赖 `users.user_role` 和 Redis Token Version 两套状态，读写不原子，存在以下风险：
+
+1. 角色校验和 Token Version 读取分步执行，并发登录可能签发“旧角色 + 新版本”的有效 JWT。
+2. Redis key 不存在被当作版本 `0`，Redis 数据丢失会让已吊销 Token 复活。
+3. 管理员可以互相降权，导致管理员数量降为 `0`。
+4. Redis 版本递增早于数据库事务，数据库或审计写入失败会误吊销用户 Token。
+5. 无乐观锁或条件更新时，并发变更会生成不真实的审计记录。
+6. Controller 自行解析 JWT claims，异常 Token 可能进入 `500`。
+7. 客户端 `X-Trace-Id` 未校验且可超过数据库列长，既可伪造也可触发事务回滚。
+
+目标不变量：
+
+- MySQL 是角色和授权版本的唯一权威状态。
+- 角色变更和 Token Version 递增具有原子性。
+- 角色变更提交后，旧授权版本的 JWT 立即失效。
+- 系统始终至少保留一名管理员。
+- 审计记录只反映数据库中真实发生的变化。
+- Redis、JWT claims 或客户端 TraceId 均不能单独授予或延长权限。
+
+## 3. 核心架构
+
+### 3.1 权威授权状态
+
+`users` 表新增：
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `token_version` | `BIGINT` | `NOT NULL DEFAULT 0` | 用户授权版本；角色变更时递增 |
+
+`users.user_role` 和 `users.token_version` 位于同一行，因此可以在同一个数据库事务中读取、锁定和更新。
+
+JWT 仅保存签发时的 `sub`、`role`、`tokenVersion` 快照，不再作为最终授权来源：
+
+- `sub` 用于定位用户。
+- `tokenVersion` 与数据库当前版本比对。
+- 有效认证主体的 `GrantedAuthority` 由数据库当前 `user_role` 生成。
+- JWT 的 `role` 不参与 `@PreAuthorize` 权限判断。
+
+Redis 从认证正确性关键路径移除。后续可以增加不影响安全的性能缓存，但本设计不依赖 Redis 保证授权正确性。
+
+### 3.2 原子签发快照
+
+登录或角色选择完成时，通过单条查询读取：
+
+```text
+userId + userRole + tokenVersion
+```
+
+JWT 直接使用该快照签发，签发过程中不得再次读取 `tokenVersion`。
+
+角色变更事务与登录签发通过数据库用户行锁串行化：
+
+- 角色变更先提交：登录读取到新角色和新版本，签发新授权状态。
+- 登录快照先生成：角色变更随后递增版本，旧快照签出的 JWT 因版本不匹配而失效。
+
+## 4. 角色变更事务
+
+`PATCH /api/v1/users/{id}/role` 的事务顺序：
+
+1. 规范化并校验目标用户 ID、目标角色和认证主体 ID。
+2. 锁定 `user_role_change_guard` 单行 guard。
+3. 从数据库读取操作者当前角色；操作者不是 `ADMIN` 时返回 `403 ADMIN_PRIVILEGE_REVOKED`。
+4. 目标用户不存在时返回 `404 USER_NOT_FOUND`。
+5. 目标用户等于操作者时返回 `403 CANNOT_MODIFY_SELF_ROLE`。
+6. 如果目标角色等于当前角色，返回幂等 `200`，不递增版本、不修改用户、不写角色变更审计。
+7. 如果目标当前是 `ADMIN` 且目标角色是 `USER`，统计当前管理员数量；数量为 `1` 时返回 `409 LAST_ADMIN_CANNOT_BE_DEMOTED`。
+8. 条件更新目标用户：
+
+```sql
+UPDATE users
+SET user_role = :new_role,
+    token_version = token_version + 1,
+    updated_at = :changed_at
+WHERE id = :target_user_id
+  AND user_role = :previous_role
+```
+
+9. 条件更新影响行数为 `0` 时重试或返回并发冲突，禁止生成虚假审计。
+10. 在同一事务写入 `user_role_history`。
+11. 提交后返回 `200` 和用户当前角色。
+
+`user_role_change_guard` 用于串行化所有会改变角色的操作。角色变更频率低，使用单行数据库锁可可靠保护管理员数量不变量，避免复杂且不完整的行级计数锁。
+
+管理员数量规则：
+
+- 允许管理员降级其他管理员，但必须至少保留一名管理员。
+- 两名管理员互相并发降级时，guard 锁使请求串行；第一个成功后，第二个会因导致管理员清零而失败。
+- 未来删除用户的接口必须复用相同 guard 和最后管理员规则。
+- 本设计不新增强制下线接口；相同角色请求只做幂等角色确认。
+
+## 5. 登录与认证
+
+### 5.1 登录
+
+- 角色选择 Ticket 仍只保存登录上下文，不签发 JWT。
+- 角色选择后读取授权状态快照，并确认请求角色不超过数据库当前角色。
+- JWT 使用该快照中的角色和版本，不进行第二次 Redis 或数据库读取。
+- 数据库不可用时登录失败，不签发缺少安全状态的 Token。
+
+### 5.2 每次认证请求
+
+认证过滤器执行：
+
+1. 验证 Bearer JWT 签名、有效期和必要 claims。
+2. `sub` 必须是有效正整数；`tokenVersion` 必须是非负整数；`role` 必须是有效枚举值。
+3. claims 缺失或格式非法时返回 `401 INVALID_TOKEN`，不得进入 Controller 后转换为 `500`。
+4. 查询 MySQL 当前 `token_version`。
+5. 用户不存在或 JWT 版本不相等时返回 `401 TOKEN_REVOKED`。
+6. 数据库不可用时返回 `503 AUTH_STATE_STORE_UNAVAILABLE`，禁止跳过校验。
+7. 根据数据库当前 `user_role` 创建认证权限。
+8. Controller 只接收经过认证的用户 ID，不解析 `role` claim。
+
+该方案保证 Redis 重启、清空或完全不可用都不会让历史吊销 Token 复活。Redis 可继续服务于其他非授权功能。
+
+## 6. 最后管理员保护
+
+`user_role_change_guard` 为单行表，主键固定为 `1`。所有角色变更事务通过 `SELECT ... FOR UPDATE` 锁定该行，然后在锁内统计 `users.user_role = 'ADMIN'` 的数量。
+
+保护规则：
+
+- 当管理员数量为 `1` 且操作会把该管理员改成 `USER` 时拒绝操作。
+- 当管理员数量大于 `1` 时允许降级任意非本人管理员。
+- 删除管理员用户的未来接口必须先持有相同 guard 锁。
+- bootstrap 创建首个管理员也持有该 guard 锁，避免多实例启动竞态。
+
+## 7. 初始管理员初始化
+
+### 7.1 配置
+
+通过部署环境变量配置：
+
+| 环境变量 | 必填 | 说明 |
+| --- | --- | --- |
+| `ADMIN_BOOTSTRAP_USERNAME` | 管理员数量为 `0` 时必填 | 首个管理员用户名 |
+| `ADMIN_BOOTSTRAP_EMAIL` | 管理员数量为 `0` 时必填 | 首个管理员邮箱 |
+| `ADMIN_BOOTSTRAP_PASSWORD` | 管理员数量为 `0` 时必填 | 首个管理员初始明文密码，仅存在于部署环境 |
+
+部署使用需求指定的用户名、邮箱和密码值；密码不得写入 `.env.example`、迁移、源代码、日志、测试快照或 Git。正式部署前应更换已在沟通渠道出现过的初始密码。
+
+### 7.2 初始化行为
+
+`AdminBootstrapInitializer` 在数据库迁移完成后执行：
+
+1. 查询并锁定 `user_role_change_guard`。
+2. 如果已存在至少一名管理员，忽略 bootstrap 配置并结束。
+3. 如果没有管理员且任一配置缺失，启动失败并报告缺失变量名。
+4. 如果目标用户名或邮箱已被占用，启动失败并报告配置冲突，不把已有普通用户静默提升为管理员。
+5. 使用 BCrypt `PasswordHasher` 对密码进行一次性加密。
+6. 创建 `ADMIN` 用户，`token_version = 0`，审计时间使用 UTC。
+7. 提交后只记录“bootstrap 管理员创建成功”和内部用户 ID；不记录密码、Token 或邮箱。
+
+已有管理员时，即使继续提供 bootstrap 配置也不修改已有管理员的用户名、邮箱、密码或角色。
+
+## 8. 审计与 TraceId
+
+- 角色更新、`token_version` 递增和审计插入位于同一 MySQL 事务。
+- 审计中的 `previous_role` 来自条件更新成功时的数据库状态。
+- `changed_at` 使用服务端 UTC 时间。
+- `TraceIdFilter` 仅接受匹配 `[A-Za-z0-9._-]{1,64}` 的客户端 `X-Trace-Id`。
+- 非法或缺失输入使用服务端生成 UUID；服务端生成的值写入响应头、MDC 和审计。
+- 审计不得记录密码、JWT、完整请求体或其他敏感信息。
+- 新迁移增加 `target_user_id`、`actor_user_id` 外键并使用 `ON DELETE RESTRICT`，保证用户被删除前必须妥善处理审计关系。
+- 若现有 `user_role_history` 存在悬挂用户 ID，迁移失败并中止部署；部署前需人工修复审计数据，禁止自动删除历史记录。
+
+## 9. 数据库迁移
+
+不修改已执行的 `V4__create_user_role_history.sql`。
+
+新增：
+
+### `V5__add_user_token_version.sql`
+
+- 给 `users` 增加 `token_version BIGINT NOT NULL DEFAULT 0`。
+- 给 `users.user_role` 增加用于管理员数量查询的索引。
+
+### `V6__create_user_role_change_guard.sql`
+
+- 创建 `user_role_change_guard`。
+- 插入唯一 guard 行 `id = 1`。
+- 对 guard 行数量增加数据库约束，确保只能有一个可锁定入口。
+
+### `V7__harden_user_role_history.sql`
+
+- 增加 `target_user_id` 到 `users.id` 的外键。
+- 增加 `actor_user_id` 到 `users.id` 的外键。
+- 外键使用 `ON DELETE RESTRICT`。
+- 增加迁移前悬挂数据检查；存在异常时让迁移失败，保留审计数据并中止部署。
+
+迁移不创建初始用户，不包含任何密码或密码哈希。
+
+## 10. 错误协议
+
+所有错误使用 RFC 9457 `ProblemDetail`，扩展字段 `code` 保持稳定。
+
+| HTTP | code | 场景 |
+| --- | --- | --- |
+| 400 | `VALIDATION_FAILED` | 路径 ID 或角色值非法 |
+| 401 | `INVALID_TOKEN` | JWT 缺少或错误解析 `sub`、`role`、`tokenVersion` |
+| 401 | `UNAUTHORIZED` | Bearer JWT 缺失、签名或有效期非法 |
+| 401 | `TOKEN_REVOKED` | 用户不存在或 Token Version 不匹配 |
+| 403 | `FORBIDDEN` | 认证主体当前不是管理员 |
+| 403 | `ADMIN_PRIVILEGE_REVOKED` | Service 事务内确认操作者已被降权 |
+| 403 | `CANNOT_MODIFY_SELF_ROLE` | 操作者尝试修改自己的角色 |
+| 404 | `USER_NOT_FOUND` | 目标用户不存在 |
+| 409 | `LAST_ADMIN_CANNOT_BE_DEMOTED` | 变更会导致管理员清零 |
+| 500 | `INTERNAL_ERROR` | 未预期错误 |
+| 503 | `AUTH_STATE_STORE_UNAVAILABLE` | MySQL 授权状态读取失败 |
+
+相同角色请求返回 `200` 幂等响应，不定义为错误。
+
+## 11. 组件边界
+
+| 组件 | 职责 |
+| --- | --- |
+| `UserRoleController` | HTTP 输入、Bean Validation、OpenAPI |
+| `UserRoleAuthorizationService` | 角色变更事务、并发控制、最后管理员规则、审计 |
+| `UserAuthorizationStateService` | 读取角色与 Token Version 快照、认证时读取权威状态 |
+| `AdminBootstrapInitializer` | 环境变量驱动的首个管理员创建 |
+| `TokenVersionAuthenticationFilter` | JWT 校验、MySQL 版本校验、数据库权限生成 |
+| `JwtTokenService` | 使用授权状态快照签发 JWT |
+| `TraceIdFilter` | 生成或规范化 TraceId |
+| `UserRoleHistoryRepository` | 写入审计记录 |
+| `GlobalExceptionHandler` | RFC 9457 错误映射 |
+
+`UserTokenVersionService` 的 Redis 实现从授权链路移除；仅在没有其他调用者时删除，避免生成未使用代码。Controller 不返回 Entity，Service 不向 Controller 暴露 JPA Entity，Repository 不实现授权规则。
+
+## 12. 测试计划
+
+### Web 测试
+
+- 无 Authorization、非法 JWT、claims 缺失分别返回约定 401。
+- 普通用户调用返回 403。
+- 管理员可修改其他用户角色。
+- 修改自己返回 `403 CANNOT_MODIFY_SELF_ROLE`。
+- 目标不存在返回 404。
+- 非法路径 ID 和角色返回 400。
+- 最后管理员降级返回 `409 LAST_ADMIN_CANNOT_BE_DEMOTED`。
+- 响应不包含密码摘要、JWT 或 Token Version。
+- 非法 `X-Trace-Id` 不导致 500，且响应使用服务端 TraceId。
+
+### Service 单元测试
+
+- `USER -> ADMIN`、`ADMIN -> USER` 成功路径。
+- 操作者当前角色不是管理员返回 `ADMIN_PRIVILEGE_REVOKED`。
+- 同角色请求幂等且不写审计。
+- 最后管理员保护在不同角色组合下正确。
+- 条件更新失败时不写审计。
+- 审计记录 previous/new role、actor、target、UTC 时间和规范化 TraceId。
+
+### MySQL Testcontainers 集成测试
+
+- 角色和 Token Version 同事务提交。
+- 数据库或审计写入失败时角色和版本一起回滚。
+- 旧 Token 在角色变更提交后立即失效，新快照 Token 有效。
+- Redis 被清空或不可用不影响 Token 校验结果。
+- 两名管理员互相并发降级最多一个成功，管理员数量不为 `0`。
+- 目标降权与并发登录签发不会产生长期有效的旧权限 Token。
+- 同用户并发角色变更生成准确审计。
+- V5 至 V7 迁移在空库和已有合法审计数据上成功，存在悬挂外键数据时失败并保留数据。
+
+### Bootstrap 测试
+
+- 空管理员表首次启动创建一个管理员。
+- 已有管理员时跳过初始化并保持数据不变。
+- 配置缺失、用户名冲突、邮箱冲突分别启动失败。
+- 数据库仅保存 BCrypt 密码摘要。
+- 多实例并发启动只创建一个管理员。
+- 日志和异常不包含密码。
+
+最终执行 `gradlew check`。
+
+## 13. API 文档
+
+更新：
+
+- `docs/api/user/update-user-role.md`
+- `docs/api/auth/login.md`
+
+文档必须说明：
+
+- Token Version 权威存储已迁移到 MySQL。
+- 角色变更立即失效旧 Token。
+- 最后管理员保护。
+- RFC 9457 错误码。
+- 相同角色幂等语义。
+- bootstrap 仅通过部署环境配置，不提供 HTTP 管理接口。
+- 可执行 curl 示例。
+
+## 14. 实施顺序
+
+1. 数据库迁移和 Entity 映射。
+2. 授权状态读取组件和 JWT 原子快照签发。
+3. `PATCH /api/v1/users/{id}/role` 的事务、并发保护、审计和测试。
+4. 认证过滤器和权限生成改造。
+5. TraceId 规范化和错误协议修正。
+6. Admin Bootstrap Initializer 和测试。
+7. OpenAPI、API 文档、格式化和 `gradlew check`。
+
+实施仍遵守“一次完成一个 HTTP 接口”的项目规则；登录、认证过滤器和 bootstrap 属于既有接口或启动能力的必要重构，不新增其他 HTTP 接口。
+
+## 15. 验收标准
+
+- 管理员数量永远无法通过 API 降为 `0`。
+- 角色变更、Token Version 和审计具有数据库原子性。
+- 每个认证请求以 MySQL 当前角色和版本为准。
+- Redis 丢失或不可用不会延长任何 JWT 生命周期。
+- 并发登录不能签发可绕过降权的旧角色 Token。
+- 初始管理员只在无管理员时通过环境变量创建，密码不进入 Git 或日志。
+- 无 TODO、假实现、敏感信息日志和 `ddl-auto=update`。
+- 单元测试、Testcontainers 集成测试和 `gradlew check` 通过。
