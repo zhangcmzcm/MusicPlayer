@@ -1,12 +1,12 @@
 package org.example.music.user.service;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.Locale;
 import org.example.music.security.JwtTokenResult;
 import org.example.music.security.JwtTokenService;
 import org.example.music.user.domain.LoginPrincipal;
 import org.example.music.user.domain.LoginTicketContext;
+import org.example.music.user.domain.UserAuthorizationSnapshot;
 import org.example.music.user.domain.UserRole;
 import org.example.music.user.dto.AuthenticationResponse;
 import org.example.music.user.dto.LoginRequest;
@@ -18,7 +18,6 @@ import org.example.music.user.exception.InvalidCredentialsException;
 import org.example.music.user.exception.LoginRateLimitedException;
 import org.example.music.user.exception.LoginTicketInvalidException;
 import org.example.music.user.exception.RoleSelectionNotAllowedException;
-import org.example.music.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,23 +27,26 @@ public class UserLoginService {
     private final EmailCodeLoginService emailCodeLoginService;
     private final LoginTicketService loginTicketService;
     private final LoginRateLimiter loginRateLimiter;
+    private final UserAuthorizationStateService userAuthorizationStateService;
+    private final UserLoginActivityService userLoginActivityService;
     private final JwtTokenService jwtTokenService;
-    private final UserRepository userRepository;
 
     public UserLoginService(
             PasswordLoginService passwordLoginService,
             EmailCodeLoginService emailCodeLoginService,
             LoginTicketService loginTicketService,
             LoginRateLimiter loginRateLimiter,
-            JwtTokenService jwtTokenService,
-            UserRepository userRepository
+            UserAuthorizationStateService userAuthorizationStateService,
+            UserLoginActivityService userLoginActivityService,
+            JwtTokenService jwtTokenService
     ) {
         this.passwordLoginService = passwordLoginService;
         this.emailCodeLoginService = emailCodeLoginService;
         this.loginTicketService = loginTicketService;
         this.loginRateLimiter = loginRateLimiter;
+        this.userAuthorizationStateService = userAuthorizationStateService;
+        this.userLoginActivityService = userLoginActivityService;
         this.jwtTokenService = jwtTokenService;
-        this.userRepository = userRepository;
     }
 
     public LoginResponse login(LoginRequest request, String clientIp) {
@@ -84,49 +86,50 @@ public class UserLoginService {
         if (principal.maximumRole() == UserRole.ADMIN) {
             return LoginResponse.roleSelectionRequired(new RoleSelectionResponse(
                     loginTicketService.issue(principal, loginType),
-                    java.time.Instant.now().plusSeconds(300)
+                    Instant.now().plusSeconds(300)
             ));
         }
-        return completeLogin(principal, UserRole.USER, loginType);
+
+        UserAuthorizationSnapshot snapshot = requireSnapshot(principal.id());
+        return completeLogin(snapshot, UserRole.USER, loginType);
     }
 
     private LoginResponse completeRoleSelection(LoginRequest request) {
         LoginTicketContext context = loginTicketService.consume(request.loginTicket());
-        LoginPrincipal principal = userRepository.findById(context.userId())
-                .map(this::principal)
-                .orElseThrow(LoginTicketInvalidException::new);
-
-        if (principal.maximumRole() != context.maximumRole()) {
+        UserAuthorizationSnapshot snapshot = requireSnapshot(context.userId());
+        if (snapshot.userRole() != context.maximumRole()) {
             throw new LoginTicketInvalidException();
         }
-        if (request.loginRole() == UserRole.ADMIN && principal.maximumRole() != UserRole.ADMIN) {
+        if (!request.loginRole().isAllowedBy(snapshot.userRole())) {
             throw new RoleSelectionNotAllowedException();
         }
 
-        return completeLogin(principal, request.loginRole(), context.loginType());
+        return completeLogin(snapshot, request.loginRole(), context.loginType());
     }
 
     private LoginResponse completeLogin(
-            LoginPrincipal principal,
+            UserAuthorizationSnapshot snapshot,
             UserRole loginRole,
             LoginType loginType
     ) {
-        userRepository.findById(principal.id()).ifPresent(user -> {
-            user.setLastLoginAt(LocalDateTime.now(ZoneOffset.UTC));
-            userRepository.save(user);
-        });
-        JwtTokenResult token = jwtTokenService.issue(principal.id(), loginRole, loginType);
+        userLoginActivityService.recordLogin(snapshot.userId());
+        JwtTokenResult token = jwtTokenService.issue(snapshot, loginRole, loginType);
         return LoginResponse.authenticated(new AuthenticationResponse(
                 token.tokenValue(),
                 "Bearer",
                 token.expiresAt(),
                 new LoginUserResponse(
-                        principal.id(),
-                        principal.username(),
-                        principal.email(),
+                        snapshot.userId(),
+                        snapshot.username(),
+                        snapshot.email(),
                         loginRole
                 )
         ));
+    }
+
+    private UserAuthorizationSnapshot requireSnapshot(Integer userId) {
+        return userAuthorizationStateService.findSnapshot(userId)
+                .orElseThrow(LoginTicketInvalidException::new);
     }
 
     private String identity(LoginRequest request) {
@@ -135,14 +138,5 @@ public class UserLoginService {
             case EMAIL_CODE -> request.email().trim().toLowerCase(Locale.ROOT);
             case USERNAME_PASSWORD, EMAIL_PASSWORD -> request.account().trim().toLowerCase(Locale.ROOT);
         };
-    }
-
-    private LoginPrincipal principal(org.example.music.user.domain.UserEntity user) {
-        return new LoginPrincipal(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getUserRole()
-        );
     }
 }

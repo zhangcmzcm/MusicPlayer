@@ -79,7 +79,7 @@ class TrackDraftIntegrationTest {
         TrackDraftRequest first = request(0L);
         first.setTitle("第一次修改");
 
-        TrackDraftResponse updated = trackDraftService.updateDraft(track.getId(), first, 7);
+        TrackDraftResponse updated = trackDraftService.updateDraft(track.getId(), first, editorId());
 
         assertEquals(1L, updated.version());
         assertEquals("第一次修改", updated.title());
@@ -89,8 +89,12 @@ class TrackDraftIntegrationTest {
 
         assertThrows(
                 TrackVersionConflictException.class,
-                () -> trackDraftService.updateDraft(track.getId(), stale, 7)
+                () -> trackDraftService.updateDraft(track.getId(), stale, editorId())
         );
+    }
+
+    private Integer editorId() {
+        return userRepository.findByUsername("draft-admin").orElseThrow().getId();
     }
 
     private TrackEntity createTrack() {

@@ -55,9 +55,9 @@
 
 `users.user_role` 和 `users.token_version` 位于同一行，因此可以在同一个数据库事务中读取、锁定和更新。
 
-JWT 保存签发时的 `sub`、`role`、`tokenVersion` 快照。只有 `sub` 和 `tokenVersion` 是认证必要 claims；`role` 是可选兼容快照，不参与认证或授权，可以缺失或被忽略。
+JWT 保存签发时的 `sub`、`role`、`tokenVersion` 快照。`users.user_role` 表示数据库中的最高权限角色，JWT 的 `role` 表示本次实际登录身份，是认证必要 claim。
 
-最终授权主体的 `GrantedAuthority` 必须由同一次数据库授权状态查询返回的 `user_role` 生成，并替换 `SecurityContext` 中由 JWT converter 创建的临时 `Authentication`。`JwtAuthenticationConverterProvider` 不得再从 `role` claim 生成 `ROLE_` 权限。
+认证时必须由同一次数据库授权状态查询返回 `user_role + token_version`，并校验 JWT `role` 不超过数据库最高角色。只有该校验通过后，才用 JWT 的实际登录角色生成 `GrantedAuthority` 并替换 `SecurityContext` 中的临时 `Authentication`。`JwtAuthenticationConverterProvider` 不得直接从 `role` claim 生成权限。
 
 Redis 从认证正确性关键路径移除。后续可以增加不影响安全的性能缓存，但本设计不依赖 Redis 保证授权正确性。
 
@@ -126,12 +126,12 @@ WHERE id = :target_user_id
 认证过滤器执行：
 
 1. 验证 Bearer JWT 签名、有效期和必要 claims。
-2. `sub` 必须是有效正整数，`tokenVersion` 必须是非负整数；`role` claim 可选，不参与认证或授权。
+2. `sub` 必须是有效正整数，`tokenVersion` 必须是非负整数，`role` 必须是合法的本次登录角色。
 3. 必要 claims 缺失或格式非法时返回 `401 INVALID_TOKEN`，不得进入 Controller 后转换为 `500`。
-4. 通过单条 MySQL 查询同时读取 `user_role` 和 `token_version`，禁止拆成两次读取。
-5. 用户不存在或 JWT 版本与同一行查询结果不相等时返回 `401 TOKEN_REVOKED`。
+4. 通过单条 MySQL 查询同时读取最高角色 `user_role` 和 `token_version`，禁止拆成两次读取。
+5. 用户不存在、JWT 版本与同一行查询结果不相等，或 JWT 登录角色超过数据库最高角色时返回 `401 TOKEN_REVOKED`。
 6. 数据库不可用时返回 `503 AUTH_STATE_STORE_UNAVAILABLE`，禁止跳过校验。
-7. 使用同一查询快照中的 `user_role` 创建 `ROLE_` 权限，构建应用 `Authentication` 并替换 `SecurityContext` 中 JWT converter 生成的临时认证对象；JWT 的 `role` claim 永远不能覆盖数据库角色。
+7. 使用已受数据库最高角色约束的 JWT `role` 创建 `ROLE_` 权限，构建应用 `Authentication` 并替换 `SecurityContext` 中 JWT converter 生成的临时认证对象。管理员选择 `USER` 时保持普通用户权限，选择 `ADMIN` 时获得管理员权限。
 8. Controller 只接收替换后的认证主体 ID，不解析 JWT `role` claim。
 
 该方案保证 Redis 重启、清空或完全不可用都不会让历史吊销 Token 复活。Redis 可继续服务于其他非授权功能。这里的“立即失效”以授权状态查询为线性化点：角色变更提交前已经完成授权查询的请求可以继续完成，但不能把旧权限用于后续请求；变更提交后的任何认证查询都必须拒绝旧版本。
@@ -219,9 +219,9 @@ WHERE id = :target_user_id
 | HTTP | code | 场景 |
 | --- | --- | --- |
 | 400 | `VALIDATION_FAILED` | 路径 ID 或角色值非法 |
-| 401 | `INVALID_TOKEN` | JWT 缺少或错误解析认证必要 claims `sub`、`tokenVersion` |
+| 401 | `INVALID_TOKEN` | JWT 缺少或错误解析认证必要 claims `sub`、`role`、`tokenVersion` |
 | 401 | `UNAUTHORIZED` | Bearer JWT 缺失、签名或有效期非法 |
-| 401 | `TOKEN_REVOKED` | 用户不存在或 Token Version 不匹配 |
+| 401 | `TOKEN_REVOKED` | 用户不存在、Token Version 不匹配或登录角色超过数据库最高角色 |
 | 403 | `FORBIDDEN` | 认证主体当前不是管理员 |
 | 403 | `ADMIN_PRIVILEGE_REVOKED` | Service 事务内确认操作者已被降权 |
 | 403 | `CANNOT_MODIFY_SELF_ROLE` | 操作者尝试修改自己的角色 |
@@ -241,8 +241,8 @@ WHERE id = :target_user_id
 | `UserRoleAuthorizationService` | 角色变更事务、并发控制、最后管理员规则、审计 |
 | `UserAuthorizationStateService` | 读取角色与 Token Version 快照、认证时读取权威状态 |
 | `AdminBootstrapInitializer` | 环境变量驱动的首个管理员创建 |
-| `JwtAuthenticationConverterProvider` | 仅完成签名后的 JWT 临时认证转换，不从 `role` claim 生成应用权限 |
-| `TokenVersionAuthenticationFilter` | 单条查询 MySQL 权威状态、版本校验并替换数据库权限 `Authentication` |
+| `JwtAuthenticationConverterProvider` | 仅完成签名后的 JWT 临时认证转换，不直接生成应用权限 |
+| `TokenVersionAuthenticationFilter` | 单条查询 MySQL 最高角色和版本，校验登录角色并替换权限 `Authentication` |
 | `JwtTokenService` | 使用授权状态快照签发 JWT |
 | `TraceIdFilter` | 生成或规范化 TraceId |
 | `UserRoleHistoryRepository` | 写入审计记录 |
@@ -254,7 +254,7 @@ WHERE id = :target_user_id
 
 ### Web 测试
 
-- 无 Authorization、非法 JWT、认证必要 claims 缺失分别返回约定 401；缺失或非法 `role` claim 不影响数据库权限判定，伪造 `role=ADMIN` 不能获得管理员权限。
+- 无 Authorization、非法 JWT、认证必要 claims 缺失分别返回约定 401；非法或超过数据库最高角色的 `role` claim 不能获得管理员权限。
 - 普通用户调用返回 403。
 - 管理员可修改其他用户角色。
 - 修改自己返回 `403 CANNOT_MODIFY_SELF_ROLE`。

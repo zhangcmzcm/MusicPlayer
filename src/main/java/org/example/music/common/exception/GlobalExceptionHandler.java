@@ -1,6 +1,7 @@
 package org.example.music.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,7 +22,11 @@ import org.example.music.track.exception.TrackStoreUnavailableException;
 import org.example.music.track.exception.TrackVersionConflictException;
 import org.example.music.track.exception.UploadTooLargeException;
 import org.example.music.email.exception.SendCodeRateLimitedException;
+import org.example.music.user.exception.AdminPrivilegeRevokedException;
 import org.example.music.user.exception.AuthStateStoreUnavailableException;
+import org.example.music.user.exception.InvalidTokenException;
+import org.example.music.user.exception.LastAdminCannotBeDemotedException;
+import org.example.music.user.exception.RoleUpdateConflictException;
 import org.example.music.user.exception.RoleUpdateForbiddenException;
 import org.example.music.user.exception.SelfRoleModificationException;
 import org.example.music.user.exception.UserNotFoundException;
@@ -43,6 +48,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -75,6 +81,34 @@ public class GlobalExceptionHandler {
         );
         problem.setProperty("errors", fields);
         return response(problem);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ProblemDetail> handleHandlerMethodValidation(
+            HandlerMethodValidationException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.BAD_REQUEST,
+                "VALIDATION_FAILED",
+                "Validation failed",
+                "Request parameters are invalid"
+        ));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ProblemDetail> handleConstraintViolation(
+            ConstraintViolationException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.BAD_REQUEST,
+                "VALIDATION_FAILED",
+                "Validation failed",
+                exception.getMessage()
+        ));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -631,6 +665,62 @@ public class GlobalExceptionHandler {
                 exception.getMessage()
         ));
     }
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidToken(
+            InvalidTokenException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.UNAUTHORIZED,
+                "INVALID_TOKEN",
+                "Invalid token",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(AdminPrivilegeRevokedException.class)
+    public ResponseEntity<ProblemDetail> handleAdminPrivilegeRevoked(
+            AdminPrivilegeRevokedException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.FORBIDDEN,
+                "ADMIN_PRIVILEGE_REVOKED",
+                "Administrator privilege revoked",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(LastAdminCannotBeDemotedException.class)
+    public ResponseEntity<ProblemDetail> handleLastAdminCannotBeDemoted(
+            LastAdminCannotBeDemotedException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.CONFLICT,
+                "LAST_ADMIN_CANNOT_BE_DEMOTED",
+                "Last administrator protected",
+                exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(RoleUpdateConflictException.class)
+    public ResponseEntity<ProblemDetail> handleRoleUpdateConflict(
+            RoleUpdateConflictException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.CONFLICT,
+                "ROLE_UPDATE_CONFLICT",
+                "Role update conflict",
+                exception.getMessage()
+        ));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(
             Exception exception,

@@ -7,7 +7,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.example.music.user.domain.UserRole;
+import jakarta.validation.constraints.Positive;
+import org.example.music.security.AuthenticatedUserPrincipal;
 import org.example.music.user.dto.UpdateUserRoleRequest;
 import org.example.music.user.dto.UserRoleUpdateResponse;
 import org.example.music.user.service.UserRoleAuthorizationService;
@@ -16,7 +17,6 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,7 +36,7 @@ public class UserRoleController {
 
     @PatchMapping("/{id}/role")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "修改用户角色", description = "管理员为其他用户授权 USER 或 ADMIN 角色")
+    @Operation(summary = "修改用户角色", description = "管理员为其他用户授权 USER 或 ADMIN 角色；变更成功后目标用户旧 Token 立即失效")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "角色更新成功", content = @Content(
                     mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -53,20 +53,24 @@ public class UserRoleController {
             @ApiResponse(responseCode = "404", description = "目标用户不存在", content = @Content(
                     mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "最后管理员保护或并发角色更新冲突", content = @Content(
+                    mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                    schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "未预期错误", content = @Content(
+                    mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                    schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "503", description = "认证状态存储不可用", content = @Content(
                     mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class)))
     })
     public ResponseEntity<UserRoleUpdateResponse> updateRole(
-            @PathVariable("id") Integer targetUserId,
+            @PathVariable("id") @Positive Integer targetUserId,
             @Valid @RequestBody UpdateUserRoleRequest request,
-            @AuthenticationPrincipal Jwt jwt
+            @AuthenticationPrincipal AuthenticatedUserPrincipal actor
     ) {
-        Integer actorUserId = Integer.valueOf(jwt.getSubject());
-        UserRole actorRole = UserRole.valueOf(String.valueOf(jwt.getClaims().get("role")));
         return ResponseEntity.ok(userRoleAuthorizationService.updateRole(
-                actorUserId,
-                actorRole,
+                actor.userId(),
+                actor.loginRole(),
                 targetUserId,
                 request.role()
         ));

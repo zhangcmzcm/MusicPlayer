@@ -33,6 +33,9 @@ public class UserEntity {
     @Column(name = "user_role", nullable = false, length = 10)
     private UserRole userRole = UserRole.USER;
 
+    @Column(name = "token_version", nullable = false)
+    private long tokenVersion;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -60,6 +63,14 @@ public class UserEntity {
         return user;
     }
 
+    public static UserEntity createAdmin(String username, String email, String passwordHash) {
+        UserEntity user = new UserEntity(username, email, passwordHash, UserRole.ADMIN);
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        user.createdAt = now;
+        user.updatedAt = now;
+        return user;
+    }
+
     public Integer getId() {
         return id;
     }
@@ -78,6 +89,10 @@ public class UserEntity {
 
     public UserRole getUserRole() {
         return userRole;
+    }
+
+    public long getTokenVersion() {
+        return tokenVersion;
     }
 
     public LocalDateTime getCreatedAt() {

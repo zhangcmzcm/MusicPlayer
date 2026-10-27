@@ -2,7 +2,6 @@ package org.example.music.user.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -14,6 +13,7 @@ import org.example.music.security.JwtTokenResult;
 import org.example.music.security.JwtTokenService;
 import org.example.music.user.domain.LoginPrincipal;
 import org.example.music.user.domain.LoginTicketContext;
+import org.example.music.user.domain.UserAuthorizationSnapshot;
 import org.example.music.user.domain.UserRole;
 import org.example.music.user.dto.LoginRequest;
 import org.example.music.user.dto.LoginResponse;
@@ -22,7 +22,6 @@ import org.example.music.user.dto.LoginType;
 import org.example.music.user.exception.InvalidCredentialsException;
 import org.example.music.user.exception.LoginRateLimitedException;
 import org.example.music.user.exception.RoleSelectionNotAllowedException;
-import org.example.music.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -45,10 +44,13 @@ class UserLoginServiceTest {
     private LoginRateLimiter loginRateLimiter;
 
     @Mock
-    private JwtTokenService jwtTokenService;
+    private UserAuthorizationStateService userAuthorizationStateService;
 
     @Mock
-    private UserRepository userRepository;
+    private UserLoginActivityService userLoginActivityService;
+
+    @Mock
+    private JwtTokenService jwtTokenService;
 
     @InjectMocks
     private UserLoginService service;
@@ -65,17 +67,26 @@ class UserLoginServiceTest {
                 null
         );
         LoginPrincipal principal = new LoginPrincipal(1, "alice", null, UserRole.USER);
+        UserAuthorizationSnapshot snapshot = new UserAuthorizationSnapshot(
+                1,
+                "alice",
+                null,
+                UserRole.USER,
+                0L
+        );
         when(loginRateLimiter.consumeRequest(eq("alice"), eq("127.0.0.1")))
                 .thenReturn(LoginRateLimitDecision.allowedDecision());
         when(passwordLoginService.authenticate(LoginType.USERNAME_PASSWORD, "alice", "correct-password"))
                 .thenReturn(principal);
-        when(jwtTokenService.issue(1, UserRole.USER, LoginType.USERNAME_PASSWORD))
+        when(userAuthorizationStateService.findSnapshot(1)).thenReturn(Optional.of(snapshot));
+        when(jwtTokenService.issue(snapshot, UserRole.USER, LoginType.USERNAME_PASSWORD))
                 .thenReturn(new JwtTokenResult("jwt", Instant.parse("2026-10-24T00:00:00Z")));
 
         LoginResponse response = service.login(request, "127.0.0.1");
 
         assertEquals(LoginStatus.AUTHENTICATED, response.status());
         assertEquals("jwt", response.authentication().accessToken());
+        verify(userLoginActivityService).recordLogin(1);
     }
 
     @Test
@@ -114,6 +125,13 @@ class UserLoginServiceTest {
                 "ticket",
                 UserRole.ADMIN
         );
+        UserAuthorizationSnapshot snapshot = new UserAuthorizationSnapshot(
+                1,
+                "alice",
+                null,
+                UserRole.USER,
+                0L
+        );
         when(loginRateLimiter.consumeRequest(eq("ticket:ticket"), eq("127.0.0.1")))
                 .thenReturn(LoginRateLimitDecision.allowedDecision());
         when(loginTicketService.consume("ticket")).thenReturn(new LoginTicketContext(
@@ -121,12 +139,7 @@ class UserLoginServiceTest {
                 UserRole.USER,
                 LoginType.USERNAME_PASSWORD
         ));
-        when(userRepository.findById(1)).thenReturn(Optional.of(new org.example.music.user.domain.UserEntity(
-                "alice",
-                null,
-                "hash",
-                UserRole.USER
-        )));
+        when(userAuthorizationStateService.findSnapshot(1)).thenReturn(Optional.of(snapshot));
 
         assertThrows(RoleSelectionNotAllowedException.class, () -> service.login(request, "127.0.0.1"));
     }

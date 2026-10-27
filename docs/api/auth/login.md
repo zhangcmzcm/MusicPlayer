@@ -108,12 +108,18 @@
 
 管理员选择 `USER` 时，JWT `role` 为 `USER`；选择 `ADMIN` 时，JWT `role` 为 `ADMIN`。普通用户只能得到 `USER`。
 
+数据库 `users.user_role` 是最高权限角色，JWT `role` 是本次实际登录身份。登录签发通过单条查询读取用户角色和 `tokenVersion` 快照，角色变更与签发竞态产生的旧 Token 会在变更提交后失效。
+
 ## JWT
 
 - 算法：HS256。
 - Access Token 有效期：24 小时。
 - 请求使用 `Authorization: Bearer <accessToken>`。
 - Claims：`sub`、`role`、`loginType`、`tokenVersion`、`jti`、`iat`、`exp`。
+- `role` 是本次实际登录身份，必须不超过数据库当前最高角色。
+- `tokenVersion` 来自与角色同一次 MySQL 快照查询。
+- 每个认证请求都会单条查询数据库最高角色和 `tokenVersion`；版本不匹配或登录角色超过最高角色时返回 `401 TOKEN_REVOKED`。
+- `JwtAuthenticationConverterProvider` 不直接信任 `role` claim；只有数据库校验通过后才生成对应权限。
 - `loginType` 为原始登录方式，不使用 `ROLE_SELECTION`。
 - 不返回密码摘要、验证码或登录票据摘要。
 
@@ -147,7 +153,7 @@ curl -X POST "http://localhost:8080/api/v1/email/send-code" \
 | 403 | `ROLE_SELECTION_NOT_ALLOWED` | 普通用户选择 `ADMIN` |
 | 429 | `LOGIN_RATE_LIMITED` | 登录请求或失败次数超限 |
 | 500 | `INTERNAL_ERROR` | 未预期错误 |
-| 503 | `AUTH_STATE_STORE_UNAVAILABLE` | Ticket/限流 Redis 不可用 |
+| 503 | `AUTH_STATE_STORE_UNAVAILABLE` | 登录状态、Ticket、限流或认证状态存储不可用 |
 | 503 | `VERIFICATION_CODE_STORE_UNAVAILABLE` | 验证码 Redis 不可用 |
 
 限流响应包含 `Retry-After`：

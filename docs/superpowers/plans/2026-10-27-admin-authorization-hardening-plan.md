@@ -110,7 +110,7 @@
 1. 角色选择 Ticket 消费后通过 `UserAuthorizationStateService` 一次读取授权快照。
 2. 请求登录角色不得超过快照中的数据库角色。
 3. `JwtTokenService` 直接使用该快照签发 `sub`、`tokenVersion` 和兼容用 `role`，不重新查询版本。
-4. `role` claim 不作为认证必要条件。
+4. `role` claim 是本次实际登录身份，并被限制不得超过数据库最高角色。
 5. 数据库不可用时不签发 JWT。
 6. 测试并发登录与角色变更的线性化结果，确保旧快照 Token 在变更提交后失效。
 
@@ -128,12 +128,12 @@
 实现：
 
 1. `JwtAuthenticationConverterProvider` 不再把 `role` claim 转换为 `ROLE_` 权限。
-2. JWT 校验只强制 `sub` 和 `tokenVersion`；`role` claim 缺失或非法不影响认证。
-3. `TokenVersionAuthenticationFilter` 单条查询同时读取 `userRole` 和 `tokenVersion`。
+2. JWT 校验强制 `sub`、`role` 和 `tokenVersion`；`role` 必须是合法登录角色。
+3. `TokenVersionAuthenticationFilter` 单条查询同时读取数据库最高角色和 `tokenVersion`，并校验 JWT 登录角色不超过最高角色。
 4. 版本不一致返回 `TOKEN_REVOKED`；claims 非法返回 `INVALID_TOKEN`；数据库不可用返回 `AUTH_STATE_STORE_UNAVAILABLE`。
-5. 根据同一查询快照创建数据库角色权限和 `AuthenticatedUserPrincipal`，并替换 `SecurityContext` 中的临时 Authentication。
+5. 根据已受数据库最高角色约束的 JWT 登录角色创建权限和 `AuthenticatedUserPrincipal`，并替换 `SecurityContext` 中的临时 Authentication。
 6. Controller 使用替换后的 principal 用户 ID。
-7. 测试伪造 `role=ADMIN`、缺失 `role`、跨查询竞态和 SecurityContext 替换行为。
+7. 测试非法 `role`、登录角色超过数据库最高角色、缺失 `role`、跨查询竞态和 SecurityContext 替换行为。
 
 ### 阶段 6：TraceId 规范化
 
@@ -200,8 +200,8 @@
 | 相同角色请求 | 200 幂等，不递增版本、不写审计 |
 | 外部写入绕过 guard | 409 `ROLE_UPDATE_CONFLICT`，无虚假审计 |
 | 旧 Token 在角色变更后请求 | 401 `TOKEN_REVOKED` |
-| JWT 伪造 `role=ADMIN` | 无管理员权限 |
-| JWT 缺少 `role` | 权限仍由数据库决定 |
+| JWT 登录角色为 `ADMIN`，数据库最高角色为 `USER` | 401 `TOKEN_REVOKED`，无管理员权限 |
+| JWT 缺少 `role` | 401 `INVALID_TOKEN` |
 | JWT 缺少 `sub` 或 `tokenVersion` | 401 `INVALID_TOKEN` |
 | MySQL 授权状态不可用 | 503，禁止跳过校验 |
 | Redis 清空或不可用 | 不影响认证正确性 |
