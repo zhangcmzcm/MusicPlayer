@@ -1,4 +1,4 @@
-﻿# 管理员授权安全加固设计
+# 管理员授权安全加固设计
 
 日期：2026-10-27
 
@@ -55,12 +55,9 @@
 
 `users.user_role` 和 `users.token_version` 位于同一行，因此可以在同一个数据库事务中读取、锁定和更新。
 
-JWT 仅保存签发时的 `sub`、`role`、`tokenVersion` 快照，不再作为最终授权来源：
+JWT 保存签发时的 `sub`、`role`、`tokenVersion` 快照。只有 `sub` 和 `tokenVersion` 是认证必要 claims；`role` 是可选兼容快照，不参与认证或授权，可以缺失或被忽略。
 
-- `sub` 用于定位用户。
-- `tokenVersion` 与数据库当前版本比对。
-- 有效认证主体的 `GrantedAuthority` 由数据库当前 `user_role` 生成。
-- JWT 的 `role` 不参与 `@PreAuthorize` 权限判断。
+最终授权主体的 `GrantedAuthority` 必须由同一次数据库授权状态查询返回的 `user_role` 生成，并替换 `SecurityContext` 中由 JWT converter 创建的临时 `Authentication`。`JwtAuthenticationConverterProvider` 不得再从 `role` claim 生成 `ROLE_` 权限。
 
 Redis 从认证正确性关键路径移除。后续可以增加不影响安全的性能缓存，但本设计不依赖 Redis 保证授权正确性。
 
@@ -74,22 +71,23 @@ userId + userRole + tokenVersion
 
 JWT 直接使用该快照签发，签发过程中不得再次读取 `tokenVersion`。
 
-角色变更事务与登录签发通过数据库用户行锁串行化：
+登录签发使用普通一致性读，不需要额外持有用户行锁；正确性来自单条授权状态查询和后续版本比较：
 
-- 角色变更先提交：登录读取到新角色和新版本，签发新授权状态。
-- 登录快照先生成：角色变更随后递增版本，旧快照签出的 JWT 因版本不匹配而失效。
+- 快照在角色变更提交前生成：签发旧角色和旧版本；角色变更随后递增版本，该 JWT 在变更提交后立即失效。
+- 快照在角色变更提交后生成：读取到新角色和新版本，签发新授权状态。
+- 签发过程中不得再次读取角色或版本，避免组合出跨变更的授权状态。
 
 ## 4. 角色变更事务
 
 `PATCH /api/v1/users/{id}/role` 的事务顺序：
 
-1. 规范化并校验目标用户 ID、目标角色和认证主体 ID。
-2. 锁定 `user_role_change_guard` 单行 guard。
+1. 从已认证主体读取用户 ID；Controller 层规范化并校验目标用户 ID 和目标角色。
+2. 将 `SELECT ... FROM user_role_change_guard WHERE id = 1 FOR UPDATE` 作为事务内第一个数据库交互，锁定单行 guard。
 3. 从数据库读取操作者当前角色；操作者不是 `ADMIN` 时返回 `403 ADMIN_PRIVILEGE_REVOKED`。
 4. 目标用户不存在时返回 `404 USER_NOT_FOUND`。
 5. 目标用户等于操作者时返回 `403 CANNOT_MODIFY_SELF_ROLE`。
 6. 如果目标角色等于当前角色，返回幂等 `200`，不递增版本、不修改用户、不写角色变更审计。
-7. 如果目标当前是 `ADMIN` 且目标角色是 `USER`，统计当前管理员数量；数量为 `1` 时返回 `409 LAST_ADMIN_CANNOT_BE_DEMOTED`。
+7. 如果目标当前是 `ADMIN` 且目标角色是 `USER`，使用锁定读 `SELECT id FROM users WHERE user_role = 'ADMIN' FOR UPDATE` 读取管理员行并按返回结果集计数；数量为 `1` 时返回 `409 LAST_ADMIN_CANNOT_BE_DEMOTED`。
 8. 条件更新目标用户：
 
 ```sql
@@ -101,17 +99,17 @@ WHERE id = :target_user_id
   AND user_role = :previous_role
 ```
 
-9. 条件更新影响行数为 `0` 时重试或返回并发冲突，禁止生成虚假审计。
+9. 条件更新影响行数为 `0` 时返回 `409 ROLE_UPDATE_CONFLICT`，不自动重试且不生成虚假审计。该分支仅防御绕过 guard 的直接数据写入；正常角色变更写入者都必须持有 guard 锁。
 10. 在同一事务写入 `user_role_history`。
 11. 提交后返回 `200` 和用户当前角色。
 
-`user_role_change_guard` 用于串行化所有会改变角色的操作。角色变更频率低，使用单行数据库锁可可靠保护管理员数量不变量，避免复杂且不完整的行级计数锁。
+`user_role_change_guard` 用于串行化所有会改变角色的操作。guard 锁必须是事务内首个数据库交互，且管理员计数必须使用上述锁定读，不能使用普通一致性 `COUNT(*)`。角色变更频率低，使用单行 guard 加管理员行锁定读可可靠保护管理员数量不变量。
 
 管理员数量规则：
 
 - 允许管理员降级其他管理员，但必须至少保留一名管理员。
 - 两名管理员互相并发降级时，guard 锁使请求串行；第一个成功后，第二个会因导致管理员清零而失败。
-- 未来删除用户的接口必须复用相同 guard 和最后管理员规则。
+- 未来用户禁用、软删除或删除接口必须复用相同 guard 和最后管理员规则。
 - 本设计不新增强制下线接口；相同角色请求只做幂等角色确认。
 
 ## 5. 登录与认证
@@ -128,19 +126,19 @@ WHERE id = :target_user_id
 认证过滤器执行：
 
 1. 验证 Bearer JWT 签名、有效期和必要 claims。
-2. `sub` 必须是有效正整数；`tokenVersion` 必须是非负整数；`role` 必须是有效枚举值。
-3. claims 缺失或格式非法时返回 `401 INVALID_TOKEN`，不得进入 Controller 后转换为 `500`。
-4. 查询 MySQL 当前 `token_version`。
-5. 用户不存在或 JWT 版本不相等时返回 `401 TOKEN_REVOKED`。
+2. `sub` 必须是有效正整数，`tokenVersion` 必须是非负整数；`role` claim 可选，不参与认证或授权。
+3. 必要 claims 缺失或格式非法时返回 `401 INVALID_TOKEN`，不得进入 Controller 后转换为 `500`。
+4. 通过单条 MySQL 查询同时读取 `user_role` 和 `token_version`，禁止拆成两次读取。
+5. 用户不存在或 JWT 版本与同一行查询结果不相等时返回 `401 TOKEN_REVOKED`。
 6. 数据库不可用时返回 `503 AUTH_STATE_STORE_UNAVAILABLE`，禁止跳过校验。
-7. 根据数据库当前 `user_role` 创建认证权限。
-8. Controller 只接收经过认证的用户 ID，不解析 `role` claim。
+7. 使用同一查询快照中的 `user_role` 创建 `ROLE_` 权限，构建应用 `Authentication` 并替换 `SecurityContext` 中 JWT converter 生成的临时认证对象；JWT 的 `role` claim 永远不能覆盖数据库角色。
+8. Controller 只接收替换后的认证主体 ID，不解析 JWT `role` claim。
 
-该方案保证 Redis 重启、清空或完全不可用都不会让历史吊销 Token 复活。Redis 可继续服务于其他非授权功能。
+该方案保证 Redis 重启、清空或完全不可用都不会让历史吊销 Token 复活。Redis 可继续服务于其他非授权功能。这里的“立即失效”以授权状态查询为线性化点：角色变更提交前已经完成授权查询的请求可以继续完成，但不能把旧权限用于后续请求；变更提交后的任何认证查询都必须拒绝旧版本。
 
 ## 6. 最后管理员保护
 
-`user_role_change_guard` 为单行表，主键固定为 `1`。所有角色变更事务通过 `SELECT ... FOR UPDATE` 锁定该行，然后在锁内统计 `users.user_role = 'ADMIN'` 的数量。
+`user_role_change_guard` 为单行表，主键固定为 `1`。所有角色变更事务必须把 guard 的 `SELECT ... FOR UPDATE` 作为首个数据库交互，然后使用 `SELECT id FROM users WHERE user_role = 'ADMIN' FOR UPDATE` 锁定读取管理员行并按结果集计数。
 
 保护规则：
 
@@ -185,7 +183,7 @@ WHERE id = :target_user_id
 - `TraceIdFilter` 仅接受匹配 `[A-Za-z0-9._-]{1,64}` 的客户端 `X-Trace-Id`。
 - 非法或缺失输入使用服务端生成 UUID；服务端生成的值写入响应头、MDC 和审计。
 - 审计不得记录密码、JWT、完整请求体或其他敏感信息。
-- 新迁移增加 `target_user_id`、`actor_user_id` 外键并使用 `ON DELETE RESTRICT`，保证用户被删除前必须妥善处理审计关系。
+- 新迁移增加 `target_user_id`、`actor_user_id` 外键并使用 `ON DELETE RESTRICT`。有角色审计记录的用户不可物理删除；未来删除能力必须实现软删除或用户 tombstone，并继续复用最后管理员保护。
 - 若现有 `user_role_history` 存在悬挂用户 ID，迁移失败并中止部署；部署前需人工修复审计数据，禁止自动删除历史记录。
 
 ## 9. 数据库迁移
@@ -221,7 +219,7 @@ WHERE id = :target_user_id
 | HTTP | code | 场景 |
 | --- | --- | --- |
 | 400 | `VALIDATION_FAILED` | 路径 ID 或角色值非法 |
-| 401 | `INVALID_TOKEN` | JWT 缺少或错误解析 `sub`、`role`、`tokenVersion` |
+| 401 | `INVALID_TOKEN` | JWT 缺少或错误解析认证必要 claims `sub`、`tokenVersion` |
 | 401 | `UNAUTHORIZED` | Bearer JWT 缺失、签名或有效期非法 |
 | 401 | `TOKEN_REVOKED` | 用户不存在或 Token Version 不匹配 |
 | 403 | `FORBIDDEN` | 认证主体当前不是管理员 |
@@ -229,6 +227,7 @@ WHERE id = :target_user_id
 | 403 | `CANNOT_MODIFY_SELF_ROLE` | 操作者尝试修改自己的角色 |
 | 404 | `USER_NOT_FOUND` | 目标用户不存在 |
 | 409 | `LAST_ADMIN_CANNOT_BE_DEMOTED` | 变更会导致管理员清零 |
+| 409 | `ROLE_UPDATE_CONFLICT` | 条件更新未命中，检测到绕过 guard 的并发或外部写入 |
 | 500 | `INTERNAL_ERROR` | 未预期错误 |
 | 503 | `AUTH_STATE_STORE_UNAVAILABLE` | MySQL 授权状态读取失败 |
 
@@ -242,7 +241,8 @@ WHERE id = :target_user_id
 | `UserRoleAuthorizationService` | 角色变更事务、并发控制、最后管理员规则、审计 |
 | `UserAuthorizationStateService` | 读取角色与 Token Version 快照、认证时读取权威状态 |
 | `AdminBootstrapInitializer` | 环境变量驱动的首个管理员创建 |
-| `TokenVersionAuthenticationFilter` | JWT 校验、MySQL 版本校验、数据库权限生成 |
+| `JwtAuthenticationConverterProvider` | 仅完成签名后的 JWT 临时认证转换，不从 `role` claim 生成应用权限 |
+| `TokenVersionAuthenticationFilter` | 单条查询 MySQL 权威状态、版本校验并替换数据库权限 `Authentication` |
 | `JwtTokenService` | 使用授权状态快照签发 JWT |
 | `TraceIdFilter` | 生成或规范化 TraceId |
 | `UserRoleHistoryRepository` | 写入审计记录 |
@@ -254,13 +254,14 @@ WHERE id = :target_user_id
 
 ### Web 测试
 
-- 无 Authorization、非法 JWT、claims 缺失分别返回约定 401。
+- 无 Authorization、非法 JWT、认证必要 claims 缺失分别返回约定 401；缺失或非法 `role` claim 不影响数据库权限判定，伪造 `role=ADMIN` 不能获得管理员权限。
 - 普通用户调用返回 403。
 - 管理员可修改其他用户角色。
 - 修改自己返回 `403 CANNOT_MODIFY_SELF_ROLE`。
 - 目标不存在返回 404。
 - 非法路径 ID 和角色返回 400。
 - 最后管理员降级返回 `409 LAST_ADMIN_CANNOT_BE_DEMOTED`。
+- 条件更新被外部写入绕过时返回 `409 ROLE_UPDATE_CONFLICT` 且不写审计。
 - 响应不包含密码摘要、JWT 或 Token Version。
 - 非法 `X-Trace-Id` 不导致 500，且响应使用服务端 TraceId。
 
@@ -277,7 +278,7 @@ WHERE id = :target_user_id
 
 - 角色和 Token Version 同事务提交。
 - 数据库或审计写入失败时角色和版本一起回滚。
-- 旧 Token 在角色变更提交后立即失效，新快照 Token 有效。
+- 旧 Token 在角色变更提交后立即失效，新快照 Token 有效；认证查询必须单条读取角色和版本，禁止跨变更组合权限。
 - Redis 被清空或不可用不影响 Token 校验结果。
 - 两名管理员互相并发降级最多一个成功，管理员数量不为 `0`。
 - 目标降权与并发登录签发不会产生长期有效的旧权限 Token。
@@ -330,7 +331,7 @@ WHERE id = :target_user_id
 - 角色变更、Token Version 和审计具有数据库原子性。
 - 每个认证请求以 MySQL 当前角色和版本为准。
 - Redis 丢失或不可用不会延长任何 JWT 生命周期。
-- 并发登录不能签发可绕过降权的旧角色 Token。
+- 并发登录不能签发可绕过任何角色变更的旧权限 Token。
 - 初始管理员只在无管理员时通过环境变量创建，密码不进入 Git 或日志。
 - 无 TODO、假实现、敏感信息日志和 `ddl-auto=update`。
 - 单元测试、Testcontainers 集成测试和 `gradlew check` 通过。
