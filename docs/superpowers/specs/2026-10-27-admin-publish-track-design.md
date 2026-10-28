@@ -105,7 +105,8 @@ ARCHIVED  → PUBLISHED   拒绝，返回 409 TRACK_NOT_DRAFT
 
 - 定义 `POST /api/v1/tracks/{trackId}/publish`。
 - 使用 `@PreAuthorize("hasRole('ADMIN')")`。
-- 从已验证 JWT 读取管理员用户 ID。
+- 通过 `@AuthenticationPrincipal AuthenticatedUserPrincipal actor` 读取执行管理员 ID，并以 `actor.userId()` 传入 Service，与 `UserRoleController` 的现有认证模型一致。
+- 禁止使用 `@AuthenticationPrincipal Jwt`：`TokenVersionAuthenticationFilter` 在真实链路上会把认证主体替换为 `AuthenticatedUserPrincipal`，`Jwt` 参数解析为 `null`，调用 `jwt.getSubject()` 会触发 NPE。
 - 调用 `TrackPublishService` 并返回 DTO。
 - 不包含状态迁移或持久化逻辑。
 
@@ -161,7 +162,32 @@ public record TrackPublishResponse(
 - `TrackNotDraftException`
 - `TrackStoreUnavailableException`
 
-并发提交由 JPA 抛出 `ObjectOptimisticLockingFailureException`，由全局异常处理器映射为 `409 TRACK_VERSION_CONFLICT`。Service 捕获其他 `DataAccessException` 时映射为 `503 TRACK_STORE_UNAVAILABLE`，但不得吞掉乐观锁冲突。
+并发提交由 JPA 抛出 `ObjectOptimisticLockingFailureException`，必须保持原样传播并由 `GlobalExceptionHandler` 映射为 `409 TRACK_VERSION_CONFLICT`。由于 `ObjectOptimisticLockingFailureException` 是 `DataAccessException` 的子类，Service 的异常处理必须采用以下顺序：
+
+```java
+try {
+    return trackPublishTransactionService.publish(trackId, actorUserId);
+} catch (ObjectOptimisticLockingFailureException exception) {
+    throw exception;
+} catch (DataAccessException exception) {
+    throw new TrackStoreUnavailableException("歌曲发布暂时不可用", exception);
+}
+```
+
+禁止只捕获 `DataAccessException` 后统一映射为 `TrackStoreUnavailableException`，否则乐观锁冲突会被错误转换为 `503 TRACK_STORE_UNAVAILABLE`。本接口不使用 `TrackVersionConflictException`，也不构造 `expectedVersion` 或 `actualVersion`；请求没有客户端版本号，无法可靠提供这些值。
+
+本接口的 `409 TRACK_VERSION_CONFLICT` 最终响应体统一如下，不含 `expectedVersion`、`actualVersion`：
+
+```json
+{
+  "type": "urn:problem:music:track_version_conflict",
+  "title": "歌曲版本冲突",
+  "status": 409,
+  "detail": "歌曲已被其他操作修改，请重新读取后重试",
+  "instance": "/api/v1/tracks/42/publish",
+  "code": "TRACK_VERSION_CONFLICT"
+}
+```
 
 ## 5. 数据与事务
 
@@ -214,7 +240,7 @@ public record TrackPublishResponse(
 - 发布成功并返回轻量 DTO。
 - 歌曲不存在抛出 `TrackNotFoundException`。
 - 非草稿抛出 `TrackNotDraftException`。
-- JPA 乐观锁冲突不被转换为 503。
+- JPA 乐观锁冲突保持原样传播，不被转换为 503。
 - 其他数据访问异常转换为 `TrackStoreUnavailableException`。
 
 ### 8.3 Controller 测试
@@ -225,7 +251,9 @@ public record TrackPublishResponse(
 - 普通用户返回 403。
 - 歌曲不存在返回 404。
 - 歌曲不是草稿返回 409。
-- 版本冲突返回 409。
+- 版本冲突返回 409，并断言响应体包含 `type`、`title`、`status`、`detail`、`instance`、`code`，且不包含 `expectedVersion` 或 `actualVersion`。
+- 使用真实链路替换后的 `AuthenticatedUserPrincipal` 主体形态验证管理员 ID 正确传入 Service；不得仅注入 `JwtAuthenticationToken` 后绕过 `TokenVersionAuthenticationFilter`。
+- 至少一条 `@SpringBootTest` + 真实 Bearer Token 集成测试穿越完整过滤器链，覆盖管理员发布成功路径。
 
 ### 8.4 MySQL 集成测试
 
@@ -234,9 +262,10 @@ public record TrackPublishResponse(
 - `DRAFT` 发布成功后状态、版本、更新时间和更新人正确持久化。
 - 重复发布 `PUBLISHED` 歌曲返回 409，且版本和审计字段不变。
 - 发布 `ARCHIVED` 歌曲返回 409。
-- 并发修改或发布触发乐观锁冲突。
+- 并发修改触发乐观锁冲突时返回上述统一 409 响应体，且冲突后的 `version`、`updatedAt`、`updatedBy` 均保持不变。
 - 普通用户无法发布。
 - 未认证请求无法访问。
+- 真实 Bearer Token 穿越完整过滤器链后，Controller 能从 `AuthenticatedUserPrincipal` 读取管理员 ID。
 
 本接口不依赖 Redis 或 MinIO，不启动无关测试容器。
 
@@ -261,6 +290,7 @@ OpenAPI 注解必须完整，包括：
 - 请求说明。
 - 成功响应示例。
 - 错误码表。
+- `409 TRACK_VERSION_CONFLICT` 响应示例，明确不含 `expectedVersion` 和 `actualVersion`。
 - 可直接执行的 curl 示例。
 
 ## 10. 验证命令
@@ -309,7 +339,8 @@ Windows PowerShell：
 
 ## 12. 明确默认项
 
-- 没有请求版本号，因此并发冲突由实体 `@Version` 保证。
+- 没有请求版本号，因此并发冲突由实体 `@Version` 生成的条件更新保证；成功响应返回递增后的版本号。
+- 发布接口的乐观锁冲突直接由全局 `ObjectOptimisticLockingFailureException` 处理器输出，不转换为携带版本字段的 `TrackVersionConflictException`。
 - 发布成功状态码使用 200，而不是 201 或 204，因为歌曲资源已存在且返回了发布结果。
 - `updatedAt` 作为本次发布后的最后修改时间；不新增 `published_at` 字段。
 - 重复发布不视为成功，返回稳定错误码 `TRACK_NOT_DRAFT`。
