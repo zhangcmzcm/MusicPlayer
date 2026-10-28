@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
+import org.example.music.security.AuthenticatedUserPrincipal;
 import org.example.music.track.dto.TrackImportResponse;
 import org.example.music.track.dto.TrackImportResponseMapper;
 import org.example.music.track.service.MediaImportService;
@@ -19,7 +20,6 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -97,9 +97,9 @@ public class TrackImportController {
             MultipartFile file,
 
             @AuthenticationPrincipal
-            Jwt jwt
+            AuthenticatedUserPrincipal actor
     ) {
-        int userId = Integer.parseInt(jwt.getSubject());
+        int userId = actor.userId();
         trackImportRateLimiter.check(userId);
         TrackImportResult result = mediaImportService.importTrack(uploadId, file, userId);
         return ResponseEntity

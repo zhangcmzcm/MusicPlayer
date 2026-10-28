@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
+import org.example.music.security.AuthenticatedUserPrincipal;
 import org.example.music.common.exception.GlobalExceptionHandler;
 import org.example.music.config.SecurityConfig;
 import org.example.music.user.service.UserAuthorizationStateService;
@@ -30,6 +31,7 @@ import org.example.music.track.exception.UnsupportedAudioFormatException;
 import org.example.music.track.exception.UploadTooLargeException;
 import org.example.music.track.service.MediaImportService;
 import org.example.music.track.service.TrackImportRateLimiter;
+import org.example.music.user.domain.UserRole;
 import org.example.music.track.service.TrackImportResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,10 +39,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -48,6 +48,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @WebMvcTest(TrackImportController.class)
 @Import({SecurityConfig.class, GlobalExceptionHandler.class})
 class TrackImportControllerTest {
+
+    // authentication(...) injects the final Authentication directly and bypasses TokenVersionAuthenticationFilter.
+    // These tests verify controller contracts; real-token filter-chain behavior is covered by integration tests.
 
     private static final UUID UPLOAD_ID = UUID.fromString("36bd81f4-2fa2-4d1c-a7c3-b6423690a3fa");
 
@@ -187,15 +190,6 @@ class TrackImportControllerTest {
         verifyNoInteractions(mediaImportService);
     }
 
-    private static MockMultipartFile uploadIdPart() {
-        return new MockMultipartFile(
-                "uploadId",
-                "",
-                "application/json",
-                UPLOAD_ID.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)
-        );
-    }
-
     private static MockMultipartFile audioFile() {
         return new MockMultipartFile(
                 "file",
@@ -206,23 +200,17 @@ class TrackImportControllerTest {
     }
 
     private static RequestPostProcessor adminAuthentication() {
-        return SecurityMockMvcRequestPostProcessors.authentication(new JwtAuthenticationToken(
-                Jwt.withTokenValue("token")
-                        .header("alg", "HS256")
-                        .subject("7")
-                        .claim("role", "ADMIN")
-                        .build(),
+        return authentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUserPrincipal(7, UserRole.ADMIN),
+                null,
                 java.util.List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
         ));
     }
 
     private static RequestPostProcessor userAuthentication() {
-        return SecurityMockMvcRequestPostProcessors.authentication(new JwtAuthenticationToken(
-                Jwt.withTokenValue("token")
-                        .header("alg", "HS256")
-                        .subject("8")
-                        .claim("role", "USER")
-                        .build(),
+        return authentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUserPrincipal(8, UserRole.USER),
+                null,
                 java.util.List.of(new SimpleGrantedAuthority("ROLE_USER"))
         ));
     }

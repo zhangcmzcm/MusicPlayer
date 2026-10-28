@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import org.example.music.security.AuthenticatedUserPrincipal;
 import org.example.music.common.exception.GlobalExceptionHandler;
 import org.example.music.config.SecurityConfig;
 import org.example.music.user.service.UserAuthorizationStateService;
@@ -22,16 +23,15 @@ import org.example.music.track.exception.TrackDraftValidationException;
 import org.example.music.track.exception.TrackNotDraftException;
 import org.example.music.track.exception.TrackNotFoundException;
 import org.example.music.track.exception.TrackVersionConflictException;
+import org.example.music.user.domain.UserRole;
 import org.example.music.track.service.TrackDraftService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -39,6 +39,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @WebMvcTest(TrackDraftController.class)
 @Import({SecurityConfig.class, GlobalExceptionHandler.class})
 class TrackDraftControllerTest {
+
+    // authentication(...) injects the final Authentication directly and bypasses TokenVersionAuthenticationFilter.
+    // These tests verify controller contracts; real-token filter-chain behavior is covered by integration tests.
 
     private static final String URL = "/api/v1/tracks/42/draft";
 
@@ -223,23 +226,17 @@ class TrackDraftControllerTest {
     }
 
     private static RequestPostProcessor adminAuthentication() {
-        return SecurityMockMvcRequestPostProcessors.authentication(new JwtAuthenticationToken(
-                Jwt.withTokenValue("token")
-                        .header("alg", "HS256")
-                        .subject("7")
-                        .claim("role", "ADMIN")
-                        .build(),
+        return authentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUserPrincipal(7, UserRole.ADMIN),
+                null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
         ));
     }
 
     private static RequestPostProcessor userAuthentication() {
-        return SecurityMockMvcRequestPostProcessors.authentication(new JwtAuthenticationToken(
-                Jwt.withTokenValue("token")
-                        .header("alg", "HS256")
-                        .subject("8")
-                        .claim("role", "USER")
-                        .build(),
+        return authentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUserPrincipal(8, UserRole.USER),
+                null,
                 List.of(new SimpleGrantedAuthority("ROLE_USER"))
         ));
     }

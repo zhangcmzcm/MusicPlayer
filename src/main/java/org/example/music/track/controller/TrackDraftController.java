@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.example.music.security.AuthenticatedUserPrincipal;
 import org.example.music.track.dto.TrackDraftRequest;
 import org.example.music.track.dto.TrackDraftResponse;
 import org.example.music.track.service.TrackDraftService;
@@ -16,7 +17,6 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -76,9 +76,9 @@ public class TrackDraftController {
             TrackDraftRequest request,
 
             @AuthenticationPrincipal
-            Jwt jwt
+            AuthenticatedUserPrincipal actor
     ) {
-        int userId = Integer.parseInt(jwt.getSubject());
+        int userId = actor.userId();
         return ResponseEntity.ok(trackDraftService.updateDraft(trackId, request, userId));
     }
 }
