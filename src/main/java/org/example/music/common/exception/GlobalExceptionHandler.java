@@ -17,6 +17,9 @@ import org.example.music.track.exception.TrackImportRateLimitedException;
 import org.example.music.track.exception.UnsupportedAudioFormatException;
 import org.example.music.track.exception.TrackAlreadyArchivedException;
 import org.example.music.track.exception.TrackDraftValidationException;
+import org.example.music.track.exception.TrackDeleteFailedException;
+import org.example.music.track.exception.TrackMediaCleanupFailedException;
+import org.example.music.track.exception.TrackNotArchivedException;
 import org.example.music.track.exception.TrackNotDraftException;
 import org.example.music.track.exception.TrackNotFoundException;
 import org.example.music.track.exception.TrackStoreUnavailableException;
@@ -558,6 +561,60 @@ public class GlobalExceptionHandler {
                 "TRACK_NOT_FOUND",
                 "歌曲不存在",
                 exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(TrackNotArchivedException.class)
+    public ResponseEntity<ProblemDetail> handleTrackNotArchived(
+            TrackNotArchivedException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.CONFLICT,
+                "TRACK_NOT_ARCHIVED",
+                "歌曲未归档",
+                "只有 ARCHIVED 状态的歌曲可以删除"
+        ));
+    }
+
+    @ExceptionHandler(TrackMediaCleanupFailedException.class)
+    public ResponseEntity<ProblemDetail> handleTrackMediaCleanupFailed(
+            TrackMediaCleanupFailedException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Track media cleanup failed, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "TRACK_MEDIA_CLEANUP_FAILED",
+                "歌曲媒体清理失败",
+                "歌曲媒体对象无法删除，请稍后重试"
+        ));
+    }
+
+    @ExceptionHandler(TrackDeleteFailedException.class)
+    public ResponseEntity<ProblemDetail> handleTrackDeleteFailed(
+            TrackDeleteFailedException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn(
+                "Track delete failed, traceId={}, exceptionType={}",
+                MDC.get("traceId"),
+                exception.getClass().getSimpleName(),
+                exception
+        );
+        return response(problem(
+                request,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "TRACK_DELETE_FAILED",
+                "歌曲删除失败",
+                "歌曲记录无法删除，请稍后重试"
         ));
     }
 
