@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
+import org.example.music.track.exception.TrackAlreadyArchivedException;
 import org.example.music.track.exception.TrackNotDraftException;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -154,6 +155,15 @@ public class TrackEntity {
             throw new TrackNotDraftException(this.id);
         }
         this.status = TrackStatus.PUBLISHED;
+        this.updatedAt = updatedAt;
+        this.updatedBy = userId;
+    }
+
+    public void archive(Integer userId, LocalDateTime updatedAt) {
+        if (this.status == TrackStatus.ARCHIVED) {
+            throw new TrackAlreadyArchivedException(this.id);
+        }
+        this.status = TrackStatus.ARCHIVED;
         this.updatedAt = updatedAt;
         this.updatedBy = userId;
     }

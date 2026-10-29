@@ -15,6 +15,7 @@ import org.example.music.track.exception.MediaImportStoreUnavailableException;
 import org.example.music.track.exception.MediaObjectCleanupFailedException;
 import org.example.music.track.exception.TrackImportRateLimitedException;
 import org.example.music.track.exception.UnsupportedAudioFormatException;
+import org.example.music.track.exception.TrackAlreadyArchivedException;
 import org.example.music.track.exception.TrackDraftValidationException;
 import org.example.music.track.exception.TrackNotDraftException;
 import org.example.music.track.exception.TrackNotFoundException;
@@ -557,6 +558,20 @@ public class GlobalExceptionHandler {
                 "TRACK_NOT_FOUND",
                 "歌曲不存在",
                 exception.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(TrackAlreadyArchivedException.class)
+    public ResponseEntity<ProblemDetail> handleTrackAlreadyArchived(
+            TrackAlreadyArchivedException exception,
+            HttpServletRequest request
+    ) {
+        return response(problem(
+                request,
+                HttpStatus.CONFLICT,
+                "TRACK_ALREADY_ARCHIVED",
+                "歌曲已归档",
+                "歌曲已经处于 ARCHIVED 状态"
         ));
     }
 
