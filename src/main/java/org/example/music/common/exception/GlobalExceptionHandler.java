@@ -17,6 +17,7 @@ import org.example.music.track.exception.TrackImportRateLimitedException;
 import org.example.music.track.exception.UnsupportedAudioFormatException;
 import org.example.music.track.exception.TrackAlreadyArchivedException;
 import org.example.music.track.exception.TrackDraftValidationException;
+import org.example.music.track.exception.TrackListValidationException;
 import org.example.music.track.exception.TrackDeleteFailedException;
 import org.example.music.track.exception.TrackMediaCleanupFailedException;
 import org.example.music.track.exception.TrackNotArchivedException;
@@ -536,6 +537,12 @@ public class GlobalExceptionHandler {
                 "Access denied",
                 "You do not have permission to perform this operation"
         ));
+    }
+
+    @ExceptionHandler(TrackListValidationException.class)
+    public ResponseEntity<ProblemDetail> handleTrackListValidation(TrackListValidationException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED",
+                "请求校验失败", "Invalid track list parameters"));
     }
 
     @ExceptionHandler(TrackDraftValidationException.class)

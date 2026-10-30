@@ -61,7 +61,7 @@ P0 是上线门槛，不代表必须在本地核心功能开发前全部实现�
 | T02 | P1 | 分页歌曲列表 | `GET /api/v1/tracks` | 提供统一 page、size、sort，限制最大页大小及排序字段，返回列表 DTO 和可空封面信息，排除普通用户不可见状态，避免 N+1。 |
 | T03 | P1 | 歌曲播放 | `GET /api/v1/tracks/{trackId}/stream` | 按既有后端代理方案流式读取，支持 Range、206、416、Accept-Ranges、Content-Range、ETag 等；验证请求中断、对象缺失及代理超时，不完整加载音频到内存。 |
 | T04 | P1 | 歌曲搜索 | `GET /api/v1/tracks/search` | 按标题、艺术家、专辑搜索并分页，限制关键词长度和查询成本；确认中文匹配方式及索引策略，不默认引入搜索引擎。 |
-| T05 | P2 | 管理员歌曲列表 | `GET /api/v1/admin/tracks` | 管理员分页查看草稿、已发布和归档状态，支持必要状态筛选及管理字段；与普通曲库列表的权限和 DTO 分开。 |
+| T05 | P2 | 管理员歌曲列表 | `GET /api/v1/admin/tracks` | T02 已规划统一状态筛选；仅在需要额外管理字段或新筛选时单独设计，不重复建设现有状态列表。 |
 | T06 | P2 | 管理员替换封面 | `PUT /api/v1/tracks/{trackId}/cover` | 确认允许修改的歌曲状态；验证文件大小、MIME、扩展名和魔数，创建新资产并处理旧对象清理、并发和失败补偿。 |
 | T07 | P2 | 编辑已发布歌曲元数据 | `PATCH /api/v1/tracks/{trackId}/metadata` | 如实际需要，单独设计标题、艺术家、专辑等字段的在线修改及版本冲突；不顺手扩大现有草稿编辑接口权限。 |
 | T08 | P3 | 恢复归档歌曲 | `POST /api/v1/tracks/{trackId}/restore` | 仅在确认需要时实施；先决定恢复到 DRAFT 还是 PUBLISHED，并验证媒体资产存在及状态并发，不能默认恢复即公开。 |
@@ -116,6 +116,7 @@ O01 不是“仅信任 JWT 并删除版本校验”。不承诺 MySQL 与 Redis 
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
+| T02 分页歌曲列表 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-list-design.md) / [计划](../superpowers/plans/2026-10-30-track-list-plan.md) | [列表 API](../api/track/list-tracks.md) | 代码审核第 1 轮 accepted；独立 cleanTest check：417/0/0；实现提交见后续记录 |
 | T01 封面获取 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-cover-design.md) / [计划](../superpowers/plans/2026-10-30-track-cover-plan.md) | [封面 API](../api/track/get-track-cover.md) | 79f06c9；代码审核第 1 轮 accepted；独立 cleanTest check：328/0/0 |
 | 歌曲详情（已完成基线） | 已完成 | [设计](../superpowers/specs/2026-10-29-track-detail-design.md) / [计划](../superpowers/plans/2026-10-30-track-detail-plan.md) | [详情 API](../api/track/get-track-detail.md) | 58c5c48；代码审核第 1 轮 accepted；245/0/0 |
 
