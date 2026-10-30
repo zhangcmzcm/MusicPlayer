@@ -118,7 +118,7 @@ O01 不是“仅信任 JWT 并删除版本校验”。不承诺 MySQL 与 Redis 
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
-| T03 歌曲播放 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-stream-design.md) / [计划](../superpowers/plans/2026-10-30-track-stream-plan.md) | [播放 API](../api/track/stream-track.md) | 代码审核第 1 轮 accepted；独立 cleanTest check：519/0/0（6m 54s）；实现提交号见后续登记 |
+| T03 歌曲播放 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-stream-design.md) / [计划](../superpowers/plans/2026-10-30-track-stream-plan.md) | [播放 API](../api/track/stream-track.md) | 代码审核第 1 轮 accepted；独立 cleanTest check：519/0/0（6m 54s）；实现提交 147c623 |
 | T02 分页歌曲列表 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-list-design.md) / [计划](../superpowers/plans/2026-10-30-track-list-plan.md) | [列表 API](../api/track/list-tracks.md) | afffbf5；代码审核第 1 轮 accepted；独立 cleanTest check：417/0/0 |
 | T01 封面获取 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-cover-design.md) / [计划](../superpowers/plans/2026-10-30-track-cover-plan.md) | [封面 API](../api/track/get-track-cover.md) | 79f06c9；代码审核第 1 轮 accepted；独立 cleanTest check：328/0/0 |
 | 歌曲详情（已完成基线） | 已完成 | [设计](../superpowers/specs/2026-10-29-track-detail-design.md) / [计划](../superpowers/plans/2026-10-30-track-detail-plan.md) | [详情 API](../api/track/get-track-detail.md) | 58c5c48；代码审核第 1 轮 accepted；245/0/0 |
