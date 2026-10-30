@@ -6,7 +6,7 @@
 
 ## 1. 状态与优先级
 
-- 待设计：已记录需求，尚未确认接口契约。下表所有未完成任务初始均为此状态。
+- 待设计：已记录需求，尚未确认接口契约。下表未完成任务默认以此状态登记，实际进度以第 8 节跟踪表为准。
 - 待实现：设计已确认；开发中：正在实现；待审核：代码、文档及必要检查完成；已完成：独立审核 accepted。
 - P0：正式对外使用前必须解决的安全或数据可靠性事项。
 - P1：核心使用链路，或在高频访问前需要完成的能力。
@@ -116,6 +116,7 @@ O01 不是“仅信任 JWT 并删除版本校验”。不承诺 MySQL 与 Redis 
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
+| T01 封面获取 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-cover-design.md) / [计划](../superpowers/plans/2026-10-30-track-cover-plan.md) | [封面 API](../api/track/get-track-cover.md) | 代码审核第 1 轮 accepted；独立 cleanTest check：328/0/0；实现提交见后续记录 |
 | 歌曲详情（已完成基线） | 已完成 | [设计](../superpowers/specs/2026-10-29-track-detail-design.md) / [计划](../superpowers/plans/2026-10-30-track-detail-plan.md) | [详情 API](../api/track/get-track-detail.md) | 58c5c48；代码审核第 1 轮 accepted；245/0/0 |
 
 新增任务只登记必要业务目标；未确认的权限和业务规则应在实际设计时询问，不能把本表中的建议当作最终契约直接编码。

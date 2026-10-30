@@ -22,6 +22,8 @@ import org.example.music.track.exception.TrackMediaCleanupFailedException;
 import org.example.music.track.exception.TrackNotArchivedException;
 import org.example.music.track.exception.TrackNotDraftException;
 import org.example.music.track.exception.TrackNotFoundException;
+import org.example.music.track.exception.TrackCoverNotFoundException;
+import org.example.music.track.exception.TrackCoverStorageInconsistentException;
 import org.example.music.track.exception.TrackStoreUnavailableException;
 import org.example.music.track.exception.TrackVersionConflictException;
 import org.example.music.track.exception.UploadTooLargeException;
@@ -548,6 +550,17 @@ public class GlobalExceptionHandler {
                 "请求校验失败",
                 exception.getMessage()
         ));
+    }
+
+    @ExceptionHandler(TrackCoverNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleCoverNotFound(TrackCoverNotFoundException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.NOT_FOUND, "COVER_NOT_FOUND", "Cover not found", "Cover not found"));
+    }
+
+    @ExceptionHandler(TrackCoverStorageInconsistentException.class)
+    public ResponseEntity<ProblemDetail> handleCoverStorageInconsistent(TrackCoverStorageInconsistentException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_GATEWAY, "COVER_STORAGE_INCONSISTENT",
+                "Cover storage inconsistent", "The cover storage metadata is inconsistent"));
     }
 
     @ExceptionHandler(TrackNotFoundException.class)

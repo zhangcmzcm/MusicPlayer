@@ -51,7 +51,7 @@
 | cover.contentType | String | 图片 MIME |
 | cover.sizeBytes | Long | 图片字节数 |
 
-缺失的可选字段明确返回 null。封面 URL 是后续 `GET /api/v1/tracks/{trackId}/cover` 的预定地址；该读取接口尚未实现，本次地址暂不能加载图片。详情只读取数据库元信息，不读取或验证 MinIO 对象。
+缺失的可选字段明确返回 null。封面 URL 对应 [歌曲封面读取接口](get-track-cover.md)，请求须携带有效 Bearer Token。详情只读取数据库元信息，不读取或验证 MinIO 对象；封面接口负责对象校验与图片读取。
 
 不返回存储 bucket、对象键、凭据、资产 ID、原始文件名、原始 ID3、摘要或内部审计字段。
 
