@@ -96,6 +96,8 @@ P0 是上线门槛，不代表必须在本地核心功能开发前全部实现�
 | O08 | P2 | 封面一致性专用异常 | 不新增接口；track 模块 | 用模块专用异常表达封面资产缺失或类型不符，替代裸 IllegalStateException，保持外部 500 INTERNAL_ERROR 契约，改善日志定位。来自详情审核非阻断项。 |
 | O09 | P1 | 核心链路性能基线 | 不新增业务接口；压测及现有指标 | 测量认证、列表、搜索、封面、播放的请求量、P95/P99、MySQL 查询数、连接池和存储吞吐；根据结果决定缓存/索引/限流，不用推测代替性能验证。 |
 | O10 | P2 | CI 与真实集成测试保障 | 不新增业务接口；构建流程 | 核对现有 CI，确保 Gradle check、MySQL/Redis/MinIO 真容器回归、测试数量及 skipped 检查在合并前执行；保留报告，不能以缓存未执行或跳过冒充通过。 |
+| O13 | P2 | 播放接口局部清理 | 不新增接口；Range 解析、错误 Advice、流日志 | 来自 T03 审核非阻断项：合并 Range 单位判定并固定 bytes =0-1 的非法语法归属；收窄错误 Advice supports；区分提交前失败与已提交中断日志。独立小任务，保持外部契约，修改后完整真实容器回归。 |
+| O12 | P1 | 浏览器原生媒体授权 | 待设计；与播放入口单独确认 | 解决 audio.src 无法直接附加 Bearer 头的接入方式；评估短期媒体凭证或受控 Cookie 等方案，明确撤销、跨域、URL/日志泄漏与续传，不默认开放私有音频。T03 当前仅支持携带 Authorization 的客户端。 |
 | O11 | P3 | 封面缓存与条件请求 | 扩展封面接口响应头 | 在正确鉴权和下线语义下评估 ETag、Last-Modified、304 与私有缓存，减少重复传输；先制定归档/权限变化后的缓存可见性策略。 |
 
 O01 不是“仅信任 JWT 并删除版本校验”。不承诺 MySQL 与 Redis 天然原子一致，也不默认故障时无限量回源；设计应明确失效窗口或拒绝策略并有测试证明。
@@ -116,6 +118,7 @@ O01 不是“仅信任 JWT 并删除版本校验”。不承诺 MySQL 与 Redis 
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
+| T03 歌曲播放 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-stream-design.md) / [计划](../superpowers/plans/2026-10-30-track-stream-plan.md) | [播放 API](../api/track/stream-track.md) | 代码审核第 1 轮 accepted；独立 cleanTest check：519/0/0（6m 54s）；实现提交号见后续登记 |
 | T02 分页歌曲列表 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-list-design.md) / [计划](../superpowers/plans/2026-10-30-track-list-plan.md) | [列表 API](../api/track/list-tracks.md) | afffbf5；代码审核第 1 轮 accepted；独立 cleanTest check：417/0/0 |
 | T01 封面获取 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-cover-design.md) / [计划](../superpowers/plans/2026-10-30-track-cover-plan.md) | [封面 API](../api/track/get-track-cover.md) | 79f06c9；代码审核第 1 轮 accepted；独立 cleanTest check：328/0/0 |
 | 歌曲详情（已完成基线） | 已完成 | [设计](../superpowers/specs/2026-10-29-track-detail-design.md) / [计划](../superpowers/plans/2026-10-30-track-detail-plan.md) | [详情 API](../api/track/get-track-detail.md) | 58c5c48；代码审核第 1 轮 accepted；245/0/0 |

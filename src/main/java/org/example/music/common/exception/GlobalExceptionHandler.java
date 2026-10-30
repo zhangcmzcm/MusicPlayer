@@ -23,6 +23,9 @@ import org.example.music.track.exception.TrackMediaCleanupFailedException;
 import org.example.music.track.exception.TrackNotArchivedException;
 import org.example.music.track.exception.TrackNotDraftException;
 import org.example.music.track.exception.TrackNotFoundException;
+import org.example.music.track.exception.TrackRangeNotSatisfiableException;
+import org.example.music.track.exception.TrackPreconditionFailedException;
+import org.example.music.track.exception.TrackAudioStorageInconsistentException;
 import org.example.music.track.exception.TrackCoverNotFoundException;
 import org.example.music.track.exception.TrackCoverStorageInconsistentException;
 import org.example.music.track.exception.TrackStoreUnavailableException;
@@ -557,6 +560,23 @@ public class GlobalExceptionHandler {
                 "请求校验失败",
                 exception.getMessage()
         ));
+    }
+
+    @ExceptionHandler(TrackPreconditionFailedException.class)
+    public ResponseEntity<ProblemDetail> handleAudioPrecondition(TrackPreconditionFailedException exception,HttpServletRequest request) {
+        return response(problem(request,HttpStatus.PRECONDITION_FAILED,"PRECONDITION_FAILED","Precondition failed","Audio precondition failed"));
+    }
+
+    @ExceptionHandler(TrackRangeNotSatisfiableException.class)
+    public ResponseEntity<ProblemDetail> handleAudioRange(TrackRangeNotSatisfiableException exception,HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                .header(HttpHeaders.CONTENT_RANGE,"bytes */"+exception.getTotalSize())
+                .body(problem(request,HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,"RANGE_NOT_SATISFIABLE","Range not satisfiable","Audio range is not satisfiable"));
+    }
+
+    @ExceptionHandler(TrackAudioStorageInconsistentException.class)
+    public ResponseEntity<ProblemDetail> handleAudioInconsistent(TrackAudioStorageInconsistentException exception,HttpServletRequest request) {
+        return response(problem(request,HttpStatus.BAD_GATEWAY,"AUDIO_STORAGE_INCONSISTENT","Audio storage inconsistent","The audio storage response is inconsistent"));
     }
 
     @ExceptionHandler(TrackCoverNotFoundException.class)
