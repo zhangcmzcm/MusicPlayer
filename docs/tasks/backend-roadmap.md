@@ -116,7 +116,7 @@ O01 不是“仅信任 JWT 并删除版本校验”。不承诺 MySQL 与 Redis 
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
-| T01 封面获取 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-cover-design.md) / [计划](../superpowers/plans/2026-10-30-track-cover-plan.md) | [封面 API](../api/track/get-track-cover.md) | 代码审核第 1 轮 accepted；独立 cleanTest check：328/0/0；实现提交见后续记录 |
+| T01 封面获取 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-cover-design.md) / [计划](../superpowers/plans/2026-10-30-track-cover-plan.md) | [封面 API](../api/track/get-track-cover.md) | 79f06c9；代码审核第 1 轮 accepted；独立 cleanTest check：328/0/0 |
 | 歌曲详情（已完成基线） | 已完成 | [设计](../superpowers/specs/2026-10-29-track-detail-design.md) / [计划](../superpowers/plans/2026-10-30-track-detail-plan.md) | [详情 API](../api/track/get-track-detail.md) | 58c5c48；代码审核第 1 轮 accepted；245/0/0 |
 
 新增任务只登记必要业务目标；未确认的权限和业务规则应在实际设计时询问，不能把本表中的建议当作最终契约直接编码。
