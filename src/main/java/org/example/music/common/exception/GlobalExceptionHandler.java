@@ -34,6 +34,8 @@ import org.example.music.track.exception.UploadTooLargeException;
 import org.example.music.email.exception.SendCodeRateLimitedException;
 import org.example.music.user.exception.AdminPrivilegeRevokedException;
 import org.example.music.user.exception.AuthStateStoreUnavailableException;
+import org.example.music.user.exception.CurrentUserRevokedException;
+import org.example.music.user.exception.UserProfileStoreUnavailableException;
 import org.example.music.user.exception.InvalidTokenException;
 import org.example.music.user.exception.LastAdminCannotBeDemotedException;
 import org.example.music.user.exception.RoleUpdateConflictException;
@@ -71,6 +73,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(CurrentUserRevokedException.class)
+    public ResponseEntity<ProblemDetail> handleCurrentUserRevoked(
+            CurrentUserRevokedException exception, HttpServletRequest request
+    ) {
+        return response(problem(request, HttpStatus.UNAUTHORIZED, "TOKEN_REVOKED",
+                "Token revoked", "Token revoked"));
+    }
+
+    @ExceptionHandler(UserProfileStoreUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleUserProfileStoreUnavailable(
+            UserProfileStoreUnavailableException exception, HttpServletRequest request
+    ) {
+        LOGGER.warn("User profile store unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"), exception.getClass().getSimpleName());
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "USER_PROFILE_STORE_UNAVAILABLE",
+                "用户资料存储不可用", "用户资料暂时无法读取，请稍后重试"));
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ProblemDetail> handleValidation(

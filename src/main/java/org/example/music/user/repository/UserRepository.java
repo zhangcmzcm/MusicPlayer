@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.example.music.user.domain.UserAuthorizationSnapshot;
 import org.example.music.user.domain.UserEntity;
 import org.example.music.user.domain.UserRole;
+import org.example.music.user.domain.UserProfileSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -14,6 +15,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
+
+    @Query("select new org.example.music.user.domain.UserProfileSnapshot("
+            + "user.id, user.username, user.email, user.userRole, cast(user.createdAt as String)) "
+            + "from UserEntity user where user.id = :userId")
+    Optional<UserProfileSnapshot> findProfileSnapshot(@Param("userId") Integer userId);
 
     boolean existsByUsername(String username);
 
