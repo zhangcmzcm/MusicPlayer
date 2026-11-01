@@ -21,6 +21,11 @@ public interface UserRepository extends JpaRepository<UserEntity, Integer> {
             + "from UserEntity user where user.id = :userId")
     Optional<UserProfileSnapshot> findProfileSnapshot(@Param("userId") Integer userId);
 
+    @Modifying(clearAutomatically = true)
+    @Query(value = "UPDATE users SET username = :username, updated_at = UTC_TIMESTAMP(6) "
+            + "WHERE id = :userId AND CAST(username AS BINARY) <> CAST(:username AS BINARY)", nativeQuery = true)
+    int updateUsernameIfChanged(@Param("userId") Integer userId, @Param("username") String username);
+
     boolean existsByUsername(String username);
 
     boolean existsByEmail(String email);

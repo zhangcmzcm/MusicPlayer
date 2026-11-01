@@ -36,6 +36,7 @@ import org.example.music.user.exception.AdminPrivilegeRevokedException;
 import org.example.music.user.exception.AuthStateStoreUnavailableException;
 import org.example.music.user.exception.CurrentUserRevokedException;
 import org.example.music.user.exception.UserProfileStoreUnavailableException;
+import org.example.music.user.exception.UserProfileUpdateUnavailableException;
 import org.example.music.user.exception.InvalidTokenException;
 import org.example.music.user.exception.LastAdminCannotBeDemotedException;
 import org.example.music.user.exception.RoleUpdateConflictException;
@@ -73,6 +74,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(UserProfileUpdateUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleUserProfileUpdateUnavailable(
+            UserProfileUpdateUnavailableException exception, HttpServletRequest request
+    ) {
+        LOGGER.warn("User profile update unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"), exception.getClass().getSimpleName(), exception);
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "USER_PROFILE_UPDATE_UNAVAILABLE",
+                "个人资料更新不可用", "个人资料暂时无法更新，请稍后重试"));
+    }
 
     @ExceptionHandler(CurrentUserRevokedException.class)
     public ResponseEntity<ProblemDetail> handleCurrentUserRevoked(
