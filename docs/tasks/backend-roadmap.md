@@ -1,6 +1,6 @@
 # 音乐播放器后端任务书
 
-更新日期：2026-10-30
+更新日期：2026-11-01
 
 用途：作为长期维护的开发清单，记录尚未完成的接口和工程优化，避免遗漏。这里的路径、优先级和顺序属于规划建议，不代替单接口设计；实际开发前仍需确认权限、字段、错误码、状态、事务及测试要求。一次只实现一个 HTTP Method + Path，审核 accepted 后再推进下一项。
 
@@ -118,6 +118,7 @@ O01 不是“仅信任 JWT 并删除版本校验”。不承诺 MySQL 与 Redis 
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
+| U01 当前用户信息 | 已完成 | [设计](../superpowers/specs/2026-11-01-current-user-design.md) / [计划](../superpowers/plans/2026-11-01-current-user-plan.md) | [当前用户 API](../api/user/get-current-user.md) | 实现提交 1ce8b67；代码审核第 1 轮 accepted；独立 cleanTest check：551/0/0（7m 26s）；非阻断日志建议已补传异常堆栈 |
 | T03 歌曲播放 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-stream-design.md) / [计划](../superpowers/plans/2026-10-30-track-stream-plan.md) | [播放 API](../api/track/stream-track.md) | 代码审核第 1 轮 accepted；独立 cleanTest check：519/0/0（6m 54s）；实现提交 147c623 |
 | T02 分页歌曲列表 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-list-design.md) / [计划](../superpowers/plans/2026-10-30-track-list-plan.md) | [列表 API](../api/track/list-tracks.md) | afffbf5；代码审核第 1 轮 accepted；独立 cleanTest check：417/0/0 |
 | T01 封面获取 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-cover-design.md) / [计划](../superpowers/plans/2026-10-30-track-cover-plan.md) | [封面 API](../api/track/get-track-cover.md) | 79f06c9；代码审核第 1 轮 accepted；独立 cleanTest check：328/0/0 |

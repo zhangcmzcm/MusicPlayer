@@ -84,3 +84,13 @@ curl.exe --request GET "http://localhost:8080/api/v1/users/me" --header "Authori
 - 时间处理仅确保本接口按数据库中保存的 UTC 值输出；不修改或修复其他模块及历史数据。
 - 当前状态：实现与本地验证完成，提交本材料供 Claude 独立只读审核；尚未取得代码审核结论，不宣称 accepted。
 - 请按 CLAUDE.md 独立核对范围并运行验证；若 needs_revision，由 Codex 修复阻断项，最多三轮；escalated 时等待人类决策。
+
+## 第 1 轮独立审核结论
+
+2026-11-01，用户转交 Claude 独立审核结论：accepted，无阻断项。审核基线 main @ dff862a；独立执行 `MINIO_INTEGRATION_TESTS=true .\gradlew.bat cleanTest check`，BUILD SUCCESSFUL（7m 26s），74 个测试类、551 通过 / 0 失败 / 0 跳过，与实现方验证数量一致。
+
+唯一非阻断建议为 GlobalExceptionHandler.handleUserProfileStoreUnavailable 的 warning 末尾补传 exception，保留 cause 堆栈以诊断 503。已按建议补传，未改变 401/503 的 HTTP、code、type 或响应结构。该日志调整属于审核后的补充，不宣称已由 Claude 重新审核。
+
+补充日志后，Codex 实际启用 `MINIO_INTEGRATION_TESTS=true` 执行 `.\gradlew.bat check`：BUILD SUCCESSFUL（7m 27s），XML 汇总 74 个类、551 通过 / 0 失败 / 0 错误 / 0 跳过。test 任务实际执行，未将缓存结果视为重新验证；无需再新增接口测试。
+
+用户已授权提交并推送。U01 实现提交为 1ce8b67，完成状态登记于 docs/tasks/backend-roadmap.md。上文“待审核”为首次送审时状态，以本节结论为准；原有 .gitignore 用户修改继续排除。

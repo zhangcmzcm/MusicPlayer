@@ -106,4 +106,4 @@
 
 已逐项覆盖设计的请求与角色语义、字段白名单、空值、事务与并发边界、两类异常、OpenAPI、API 文档和真实安全链验证。三个任务使用一致的类型及方法名，五项审查重点均有对应验证步骤，不引入其他接口或重构。
 
-用户于 2026-11-01 授权开始实现。实现和文档已完成；最终启用 MINIO_INTEGRATION_TESTS=true 执行 .\gradlew.bat cleanTest check，551 通过、0 失败、0 跳过，共 74 类，耗时 7 分 4 秒。本接口 32 项测试（Service 6、Controller 5、真实 JWT/MySQL 集成 21）全部通过。提交采用单接口原子提交，原有 .gitignore 修改排除。审核材料见 docs/reviews/2026-11-01-current-user-review.md，等待 Claude 独立审核结论，未宣称 accepted。
+用户于 2026-11-01 授权开始实现。实现和文档已完成；启用 MINIO_INTEGRATION_TESTS=true 执行 .\gradlew.bat cleanTest check，551 通过、0 失败、0 跳过，共 74 类，耗时 7 分 4 秒。本接口 32 项测试（Service 6、Controller 5、真实 JWT/MySQL 集成 21）全部通过。提交采用单接口原子提交，原有 .gitignore 修改排除。实现提交 1ce8b67；Claude 第 1 轮独立审核 accepted，独立 cleanTest check 为 551/0/0（7m 26s）。补充非阻断日志建议后再次启用 MinIO 执行 .\gradlew.bat check，551/0/0（7m 27s）。审核与完成记录见 docs/reviews/2026-11-01-current-user-review.md 和 docs/tasks/backend-roadmap.md；用户已授权推送。

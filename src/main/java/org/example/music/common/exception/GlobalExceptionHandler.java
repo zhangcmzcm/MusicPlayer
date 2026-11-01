@@ -87,7 +87,7 @@ public class GlobalExceptionHandler {
             UserProfileStoreUnavailableException exception, HttpServletRequest request
     ) {
         LOGGER.warn("User profile store unavailable, traceId={}, exceptionType={}",
-                MDC.get("traceId"), exception.getClass().getSimpleName());
+                MDC.get("traceId"), exception.getClass().getSimpleName(), exception);
         return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "USER_PROFILE_STORE_UNAVAILABLE",
                 "用户资料存储不可用", "用户资料暂时无法读取，请稍后重试"));
     }
