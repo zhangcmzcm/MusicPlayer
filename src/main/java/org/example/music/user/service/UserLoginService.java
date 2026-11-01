@@ -2,6 +2,7 @@ package org.example.music.user.service;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Optional;
 import org.example.music.security.JwtTokenResult;
 import org.example.music.security.JwtTokenService;
 import org.example.music.user.domain.LoginPrincipal;
@@ -83,23 +84,26 @@ public class UserLoginService {
     }
 
     private LoginResponse issueTokenOrRoleSelection(LoginPrincipal principal, LoginType loginType) {
-        if (principal.maximumRole() == UserRole.ADMIN) {
+        UserAuthorizationSnapshot snapshot = findMatchingSnapshot(
+                principal.id(), principal.maximumRole(), principal.tokenVersion())
+                .orElseThrow(InvalidCredentialsException::new);
+        if (snapshot.userRole() == UserRole.ADMIN) {
+            LoginPrincipal verified = new LoginPrincipal(snapshot.userId(), snapshot.username(), snapshot.email(),
+                    snapshot.userRole(), snapshot.tokenVersion());
             return LoginResponse.roleSelectionRequired(new RoleSelectionResponse(
-                    loginTicketService.issue(principal, loginType),
+                    loginTicketService.issue(verified, loginType),
                     Instant.now().plusSeconds(300)
             ));
         }
 
-        UserAuthorizationSnapshot snapshot = requireSnapshot(principal.id());
         return completeLogin(snapshot, UserRole.USER, loginType);
     }
 
     private LoginResponse completeRoleSelection(LoginRequest request) {
         LoginTicketContext context = loginTicketService.consume(request.loginTicket());
-        UserAuthorizationSnapshot snapshot = requireSnapshot(context.userId());
-        if (snapshot.userRole() != context.maximumRole()) {
-            throw new LoginTicketInvalidException();
-        }
+        UserAuthorizationSnapshot snapshot = findMatchingSnapshot(
+                context.userId(), context.maximumRole(), context.tokenVersion())
+                .orElseThrow(LoginTicketInvalidException::new);
         if (!request.loginRole().isAllowedBy(snapshot.userRole())) {
             throw new RoleSelectionNotAllowedException();
         }
@@ -127,9 +131,11 @@ public class UserLoginService {
         ));
     }
 
-    private UserAuthorizationSnapshot requireSnapshot(Integer userId) {
+    private Optional<UserAuthorizationSnapshot> findMatchingSnapshot(
+            Integer userId, UserRole expectedRole, long expectedVersion
+    ) {
         return userAuthorizationStateService.findSnapshot(userId)
-                .orElseThrow(LoginTicketInvalidException::new);
+                .filter(snapshot -> snapshot.userRole() == expectedRole && snapshot.tokenVersion() == expectedVersion);
     }
 
     private String identity(LoginRequest request) {

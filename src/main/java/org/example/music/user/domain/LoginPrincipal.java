@@ -4,6 +4,7 @@ public record LoginPrincipal(
         Integer id,
         String username,
         String email,
-        UserRole maximumRole
+        UserRole maximumRole,
+        long tokenVersion
 ) {
 }

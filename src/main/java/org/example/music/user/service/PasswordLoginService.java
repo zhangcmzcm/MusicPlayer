@@ -33,11 +33,12 @@ public class PasswordLoginService {
             default -> throw new InvalidCredentialsException();
         };
 
+        LoginPrincipal principal = principal(user);
         if (!passwordHasher.matches(password, user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
 
-        return principal(user);
+        return principal;
     }
 
     private String normalizeEmail(String email) {
@@ -49,7 +50,8 @@ public class PasswordLoginService {
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
-                user.getUserRole()
+                user.getUserRole(),
+                user.getTokenVersion()
         );
     }
 }

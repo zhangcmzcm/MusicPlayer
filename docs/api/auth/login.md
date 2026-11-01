@@ -108,7 +108,11 @@
 
 管理员选择 `USER` 时，JWT `role` 为 `USER`；选择 `ADMIN` 时，JWT `role` 为 `ADMIN`。普通用户只能得到 `USER`。
 
-数据库 `users.user_role` 是最高权限角色，JWT `role` 是本次实际登录身份。登录签发通过单条查询读取用户角色和 `tokenVersion` 快照，角色变更与签发竞态产生的旧 Token 会在变更提交后失效。
+数据库 `users.user_role` 是最高权限角色，JWT `role` 是本次实际登录身份。密码校验使用的同一用户记录、或验证码消费前读取的用户记录，产生绑定角色和 tokenVersion 的内部验证结果。直接签发 JWT 或生成管理员 Ticket 前，必须复核账户仍存在、当前角色与版本均与验证结果一致，不得用新版本升级旧验证结果。
+
+初始复核失败统一返回 `401 INVALID_CREDENTIALS`。这包括验证后账户消失、角色变化或版本变化；账户消失的普通登录路径不再返回不适用于该阶段的 `LOGIN_TICKET_INVALID`。Ticket 兑换阶段的上述失效仍返回 `401 LOGIN_TICKET_INVALID`。
+
+复核成功后只使用该次不可变快照签发。若撤销发生在最后复核之后，登录可能仍返回 200 和旧版本 JWT，但它随后访问受保护接口时会被拒绝；不保证所有并发撤销都使登录请求当场返回 401。详见下文与[部署边界](../../deployment/auth-version-binding.md)。
 
 ## JWT
 
@@ -117,7 +121,7 @@
 - 请求使用 `Authorization: Bearer <accessToken>`。
 - Claims：`sub`、`role`、`loginType`、`tokenVersion`、`jti`、`iat`、`exp`。
 - `role` 是本次实际登录身份，必须不超过数据库当前最高角色。
-- `tokenVersion` 来自与角色同一次 MySQL 快照查询。
+- `tokenVersion` 来自已匹配凭据验证结果或 Ticket 绑定版本的 MySQL 角色/版本快照；签发时不再另查新版本替换它。
 - 每个认证请求都会单条查询数据库最高角色和 `tokenVersion`；版本不匹配或登录角色超过最高角色时返回 `401 TOKEN_REVOKED`。
 - `JwtAuthenticationConverterProvider` 不直接信任 `role` claim；只有数据库校验通过后才生成对应权限。
 - `loginType` 为原始登录方式，不使用 `ROLE_SELECTION`。
@@ -132,6 +136,18 @@ music:verification:code:LOGIN:<normalized-email>
 ```
 
 验证码验证成功后立即消费。登录失败、过期、已使用或不匹配统一返回 `401 INVALID_CREDENTIALS`。
+
+验证码消费后若账户版本/角色复核或后续处理失败，不恢复已消费验证码，需要重新发起验证码登录流程。未消费且仍有效的验证码继续按既有规则使用，不因认证版本绑定额外撤销。
+
+## 管理员 Ticket
+
+Ticket 是一次性角色选择凭据，服务端以一次 Redis Lua 操作保存 userId、maximumRole、loginType、tokenVersion 四字段及 300 秒 TTL。版本取自已通过复核的原验证版本，不接受客户端提供版本，也不升级旧验证结果。
+
+兑换时原子检查 PTTL、读取并删除 Ticket，再复核当前账户版本和角色。版本 0 合法，但缺失版本不等于 0；旧格式、无有效 TTL、未知/缺失字段、非规范或溢出版本、已消费、过期及版本/角色变化均返回 `401 LOGIN_TICKET_INVALID`。
+
+消费后的 Ticket 不因权限、状态查询、签发或网络失败而恢复；需要重新发起登录。Redis 超时可能已经消费 Ticket，返回 503 不保证凭据仍可使用。签发前复核后若又发生撤销，可能返回旧版本 Ticket，但其后续兑换必定无法升级为新版本有效 Token。
+
+现有随机 Ticket 格式、角色选择请求与成功响应不变。TTL 以 Redis 为准，不因兑换或失败延期。上线必须让全部旧登录实例退出服务；混合版本和回滚限制见[认证版本绑定部署说明](../../deployment/auth-version-binding.md)。
 
 发送登录验证码：
 
@@ -148,8 +164,8 @@ curl -X POST "http://localhost:8080/api/v1/email/send-code" \
 | HTTP | `code` | 场景 |
 | --- | --- | --- |
 | 400 | `VALIDATION_FAILED` | 字段组合或格式错误 |
-| 401 | `INVALID_CREDENTIALS` | 用户名、邮箱、密码或验证码认证失败 |
-| 401 | `LOGIN_TICKET_INVALID` | Ticket 无效、过期或重放 |
+| 401 | `INVALID_CREDENTIALS` | 用户名、邮箱、密码或验证码认证失败；初始复核时账户不存在或版本/角色变化 |
+| 401 | `LOGIN_TICKET_INVALID` | Ticket 无效、过期、重放、无版本/TTL、字段/版本非法，或兑换时账户/版本/角色失效 |
 | 403 | `ROLE_SELECTION_NOT_ALLOWED` | 普通用户选择 `ADMIN` |
 | 429 | `LOGIN_RATE_LIMITED` | 登录请求或失败次数超限 |
 | 500 | `INTERNAL_ERROR` | 未预期错误 |

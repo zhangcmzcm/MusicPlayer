@@ -40,15 +40,16 @@ public class EmailCodeLoginService {
 
         UserEntity user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(InvalidCredentialsException::new);
-        if (!emailVerificationCodeService.consume(verifiedEmailCode)) {
-            throw new InvalidCredentialsException();
-        }
-
-        return new LoginPrincipal(
+        LoginPrincipal principal = new LoginPrincipal(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
-                user.getUserRole()
+                user.getUserRole(),
+                user.getTokenVersion()
         );
+        if (!emailVerificationCodeService.consume(verifiedEmailCode)) {
+            throw new InvalidCredentialsException();
+        }
+        return principal;
     }
 }

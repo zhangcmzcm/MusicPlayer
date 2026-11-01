@@ -5,6 +5,7 @@ import org.example.music.user.dto.LoginType;
 public record LoginTicketContext(
         Integer userId,
         UserRole maximumRole,
-        LoginType loginType
+        LoginType loginType,
+        long tokenVersion
 ) {
 }
