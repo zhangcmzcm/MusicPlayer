@@ -2,7 +2,7 @@
 
 日期：2026-11-01。
 
-状态：书面设计已审阅；用户确认原密码兼容性修正并继续前置认证加固设计（2026-11-01）。原密码下限修正为 1 字符，新密码强度规则不变。
+状态：书面设计已审阅，原密码兼容性修正已确认；认证版本绑定加固 5e8ceba 已获独立审核 accepted，代码前置条件解除，待核对实际基线后制定改密实现计划（2026-11-01）。原密码 1—128 字符、新密码强度规则不变；部署条件仍保留。
 
 基线：main @ 0cc33c3。开始设计时工作区干净，已与 origin/main 同步。
 
@@ -26,7 +26,9 @@
 
 ### 2.2 已确认的认证加固前置任务
 
-当前密码登录校验后会另外读取最新认证快照再签发 Token，LoginPrincipal 未携带验证时版本；管理员 LoginTicketContext 和 Redis Ticket 也未保存认证版本。因此单纯改密递增版本，不能阻止已验证旧密码的登录请求或已有角色选择 Ticket 随后换取新版本有效 Token。
+原设计基线 0cc33c3 中，密码登录校验后会另外读取最新认证快照再签发 Token，LoginPrincipal 未携带验证时版本；管理员 LoginTicketContext 和 Redis Ticket 也未保存认证版本。因此单纯改密递增版本，不能阻止已验证旧密码的登录请求或已有角色选择 Ticket 随后换取新版本有效 Token。
+
+前置闭环：独立加固实现 5e8ceba、审核材料 516dd6b 已获 Claude 第 1 轮 accepted，零阻断、零非阻断；独立启用 MinIO 的 cleanTest check 为 767/0/0（81 类，8m 26s）。LoginPrincipal、LoginTicketContext 与 Redis Ticket 已绑定版本，初始/兑换复核和最后复核后窗口均由真实 MySQL/Redis/JWT 测试验证。U03 可据此核对后续代码基线并制定计划；实际环境须满足 [全实例部署条件](../../deployment/auth-version-binding.md)，本记录不宣称已完成部署。
 
 用户已明确同意以下顺序，不能将认证加固与改密实现混为一次变更：
 

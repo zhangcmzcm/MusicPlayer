@@ -128,10 +128,10 @@
 - [x] 设置 `$env:MINIO_INTEGRATION_TESTS = "true"`，执行 `.\gradlew.bat cleanTest check`，强制全量回归既有测试；仅为消除环境门禁跳过，不扩大到存储模块修改。
 - [x] 按 build/test-results/test/TEST-*.xml 汇总通过/失败/错误/跳过，列出跳过原因；必要集成验证未执行不能宣称完成。检查 git diff --check、git status --short，列全修改及 untracked，无迁移、依赖、Token/凭据或无关文件。
 - [x] 按 AGENTS.md 准备 docs/reviews/2026-11-01-auth-version-binding-review.md：唯一既有接口、任务范围、需求/权限、行为、全部文件、API/部署文档、迁移无、基线/实现提交、真实命令与数量、curl 及并发/部署限制。允许最终一个单任务原子提交，须记录实际提交方式，不虚构任务提交或测试执行。
-- [ ] 等待 Claude 独立只读审核结论；accepted 后记录实际实现提交与部署前提，才解除 U03 前置门禁并回到改密设计核对代码基线。needs_revision 修阻断项，最多三轮；escalated 等待人类决策。
+- [x] Claude 第 1 轮独立审核 accepted，零阻断/非阻断；记录实现提交 5e8ceba，解除 U03 代码层面的前置门禁。实际环境仍需满足全实例升级及旧请求排空条件，未宣称部署完成。
 
 ## 自查与执行门禁
 
 已对照设计及审阅提醒检查记录版本捕获、ADMIN 分支、精确四字段与规范解析、PTTL 失效、错误语义、角色变化拒绝、两个竞态窗口、真实外部依赖与全量部署边界。五项审查重点均落到测试步骤，不改变公开成功契约或实现额外接口。
 
-用户已确认实施。采用最终单任务原子提交，代码、API/部署文档及测试已完成；实际启用 MINIO_INTEGRATION_TESTS=true 执行 .\gradlew.bat cleanTest check，81 个类、767 通过 / 0 失败 / 0 错误 / 0 跳过（8m 11s）。本任务五类共 117 项，其中新增 109 项：密码版本捕获新增 6、验证码新增 2、Ticket 新增 33、登录复核新增 22、真实集成新增 46；既有 8 项同步回归。此前独立定向真实集成命令通过 51 项（新增 46 与原有登录 5，1m 8s）。git diff --check 通过，无迁移、依赖或改密/注册逻辑改动。首轮审核材料见 docs/reviews/2026-11-01-auth-version-binding-review.md；当前等待 Claude 独立审核，不宣称 accepted，也未确认生产全实例升级，不解除改密前置门禁。
+用户已确认实施。采用最终单任务原子提交，代码、API/部署文档及测试已完成；实际启用 MINIO_INTEGRATION_TESTS=true 执行 .\gradlew.bat cleanTest check，81 个类、767 通过 / 0 失败 / 0 错误 / 0 跳过（8m 11s）。本任务五类共 117 项，其中新增 109 项：密码版本捕获新增 6、验证码新增 2、Ticket 新增 33、登录复核新增 22、真实集成新增 46；既有 8 项同步回归。此前独立定向真实集成命令通过 51 项（新增 46 与原有登录 5，1m 8s）。git diff --check 通过，无迁移、依赖或改密/注册逻辑改动。首轮审核材料见 docs/reviews/2026-11-01-auth-version-binding-review.md；Claude 第 1 轮独立审核 accepted，独立 cleanTest check 为 767/0/0（81 类，8m 26s），无需修复；实现 5e8ceba、材料 516dd6b。U03 代码前置条件已满足，下一步核对实际代码基线并制定改密计划；生产全实例部署条件仍需满足，用户已授权推送。

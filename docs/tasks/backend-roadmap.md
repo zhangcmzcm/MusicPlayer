@@ -119,6 +119,7 @@ O01 不是“仅信任 JWT 并删除版本校验”。不承诺 MySQL 与 Redis 
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
+| 认证版本绑定（U03 前置） | 已完成（代码） | [设计](../superpowers/specs/2026-11-01-auth-version-binding-design.md) / [计划](../superpowers/plans/2026-11-01-auth-version-binding-plan.md) | [登录 API](../api/auth/login.md) / [部署条件](../deployment/auth-version-binding.md) | 实现 5e8ceba；第 1 轮 accepted，零阻断/非阻断；独立 cleanTest check：767/0/0（81 类，8m 26s）；U03 代码前置解除，环境生效仍需全实例升级与旧请求排空 |
 | U02 修改个人资料 | 已完成 | [设计](../superpowers/specs/2026-11-01-update-current-user-design.md) / [计划](../superpowers/plans/2026-11-01-update-current-user-plan.md) | [修改资料 API](../api/user/update-current-user.md) | 实现提交 b1a826c；代码审核第 1 轮 accepted；独立 cleanTest check：658/0/0（7m 19s）；共享时间映射建议登记 O14 |
 | U01 当前用户信息 | 已完成 | [设计](../superpowers/specs/2026-11-01-current-user-design.md) / [计划](../superpowers/plans/2026-11-01-current-user-plan.md) | [当前用户 API](../api/user/get-current-user.md) | 实现提交 1ce8b67；代码审核第 1 轮 accepted；独立 cleanTest check：551/0/0（7m 26s）；非阻断日志建议已补传异常堆栈 |
 | T03 歌曲播放 | 已完成 | [设计](../superpowers/specs/2026-10-30-track-stream-design.md) / [计划](../superpowers/plans/2026-10-30-track-stream-plan.md) | [播放 API](../api/track/stream-track.md) | 代码审核第 1 轮 accepted；独立 cleanTest check：519/0/0（6m 54s）；实现提交 147c623 |
