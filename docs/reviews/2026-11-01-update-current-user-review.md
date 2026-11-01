@@ -92,3 +92,11 @@ curl --request PATCH 'http://localhost:8080/api/v1/users/me' \
 - 不承诺跨阶段认证/资料原子快照；提交确认连接中断返回 503 时可能已经生效，客户端可 GET 确认或重提目标值。此限制在 API 文档中明确，不将 503 伪装为修改一定未生效。
 - 当前状态：代码、文档及本地验证完成，待 Claude 独立只读审核；尚无 accepted 结论，不推进下一接口。
 - 请按 CLAUDE.md 独立核对范围和验证。needs_revision 由 Codex 修阻断项；最多三轮，escalated 时等待人类决策。
+
+## 第 1 轮独立审核结论
+
+2026-11-01，用户转交 Claude 独立审核结论：accepted，无阻断项。审核基线 main @ 364a912；独立启用 MINIO_INTEGRATION_TESTS=true 执行 `.\gradlew.bat cleanTest check`，BUILD SUCCESSFUL（7m 19s），78 个测试类、658 通过 / 0 失败 / 0 跳过。新增四类 107 项全部通过，与实现方结果一致。
+
+唯一非阻断建议为将 GET/PATCH 两处 createdAt 文本到 UTC Instant 的转换提取为共享映射，避免后续约定漂移。该建议登记到任务书后续优化，本轮不改已接受的业务代码，无需重跑代码测试。
+
+U02 实现提交 b1a826c，首轮审核材料 364a912，完成状态登记于 docs/tasks/backend-roadmap.md。用户已授权推送所有待推送内容，包括此前排除的 .gitignore 增加 TEACHER.md 忽略规则；该忽略规则单独提交，不属于接口实现变更。上文“待审核/未推送”为首次送审状态，以本节结论为准。

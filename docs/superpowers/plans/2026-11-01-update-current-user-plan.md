@@ -139,4 +139,4 @@ WHERE id = :userId
 
 已对照设计检查身份来源、严格字段绑定、用户名规则、大小写/唯一性/无变化语义、事务和提交不确定性、改名登录、错误码、日志、OpenAPI、真实 MySQL/Redis/JWT 与并发回滚验证。五项审查重点均对应具体任务，方法名、参数和响应类型一致，无额外接口或数据库结构改动。
 
-用户于 2026-11-01 授权实施。代码、API 文档与 107 项新增测试已完成：严格绑定 19、Service 16、MVC 50、真实 MySQL/Redis/JWT 集成 22。实际启用 MINIO_INTEGRATION_TESTS=true 执行 .\gradlew.bat cleanTest check，78 个测试类、658 通过 / 0 失败 / 0 错误 / 0 跳过，耗时 7 分 36 秒。git diff --check 通过；不提交用户既有 .gitignore 修改，无迁移、依赖或全局 JSON 配置变更。审核材料见 docs/reviews/2026-11-01-update-current-user-review.md；当前等待 Claude 独立审核，未宣称 accepted，不推进下一接口。
+用户于 2026-11-01 授权实施。代码、API 文档与 107 项新增测试已完成：严格绑定 19、Service 16、MVC 50、真实 MySQL/Redis/JWT 集成 22。实际启用 MINIO_INTEGRATION_TESTS=true 执行 .\gradlew.bat cleanTest check，78 个测试类、658 通过 / 0 失败 / 0 错误 / 0 跳过，耗时 7 分 36 秒。git diff --check 通过；实现提交排除用户既有 .gitignore 修改（审核后用户授权另行提交该忽略规则），无迁移、依赖或全局 JSON 配置变更。审核材料见 docs/reviews/2026-11-01-update-current-user-review.md；Claude 第 1 轮独立审核 accepted，独立 cleanTest check 为 658/0/0（78 类，7m 19s）。实现提交 b1a826c；共享时间映射非阻断建议登记 O14，U02 完成状态已记录，用户已授权推送。
