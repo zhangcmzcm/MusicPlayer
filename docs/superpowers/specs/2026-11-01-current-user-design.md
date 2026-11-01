@@ -2,7 +2,7 @@
 
 日期：2026-11-01。
 
-状态：用户已确认对话中的接口契约、读取方案、异常行为与测试范围；书面设计待用户审阅。
+状态：用户已审阅书面设计，要求修正错误 urn 格式后确认并进入实现计划（2026-11-01）；本文件已修正该项。
 
 基线：当前分支 @ 31fd99f；开始设计时已有 `.gitignore` 未提交修改，不属于本次范围。
 
@@ -87,7 +87,7 @@
 | 资料查询或其只读事务发生数据访问故障 | 503 USER_PROFILE_STORE_UNAVAILABLE | 新增专用异常及统一处理，不泄漏数据库细节 |
 | 未预期错误 | 500 INTERNAL_ERROR | 沿用统一异常处理 |
 
-业务错误使用 application/problem+json、稳定 code、现有 traceId 约定及 urn:problem:music:* 类型格式。新增错误类型为 `urn:problem:music:user-profile-store-unavailable`；TOKEN_REVOKED 使用 `urn:problem:music:token-revoked`。
+业务错误使用 application/problem+json、稳定 code、现有 traceId 约定及 urn:problem:music:* 类型格式。新增错误类型为 `urn:problem:music:user_profile_store_unavailable`；TOKEN_REVOKED 使用 `urn:problem:music:token_revoked`。沿用统一处理器与安全错误写入器的 code.toLowerCase() 生成规则，保留 code 中的下划线。
 
 JWT 签名错误、过期等资源服务器响应继续使用现有安全链行为，不在本次统一修改公共认证错误契约；API 文档应明确这一现状，不宣称全部 JWT 失败均已返回统一 ProblemDetail。
 
