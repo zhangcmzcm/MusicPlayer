@@ -1,6 +1,7 @@
 HELP.md
 AGENTS.md
 CLAUDE.md
+TEACHER.md
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
