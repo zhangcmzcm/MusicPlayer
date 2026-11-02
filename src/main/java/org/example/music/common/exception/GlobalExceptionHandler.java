@@ -35,6 +35,12 @@ import org.example.music.email.exception.SendCodeRateLimitedException;
 import org.example.music.user.exception.AdminPrivilegeRevokedException;
 import org.example.music.user.exception.AuthStateStoreUnavailableException;
 import org.example.music.user.exception.CurrentUserRevokedException;
+import org.example.music.user.exception.OldPasswordIncorrectException;
+import org.example.music.user.exception.NewPasswordSameAsOldException;
+import org.example.music.user.exception.PasswordChangeConflictException;
+import org.example.music.user.exception.PasswordChangeRateLimitedException;
+import org.example.music.user.exception.PasswordChangeRateLimitUnavailableException;
+import org.example.music.user.exception.PasswordChangeStoreUnavailableException;
 import org.example.music.user.exception.UserProfileStoreUnavailableException;
 import org.example.music.user.exception.UserProfileUpdateUnavailableException;
 import org.example.music.user.exception.InvalidTokenException;
@@ -74,6 +80,63 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(OldPasswordIncorrectException.class)
+    public ResponseEntity<ProblemDetail> handleOldPasswordIncorrect(
+            OldPasswordIncorrectException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_REQUEST, "OLD_PASSWORD_INCORRECT",
+                "原密码不正确", exception.getMessage()));
+    }
+
+    @ExceptionHandler(NewPasswordSameAsOldException.class)
+    public ResponseEntity<ProblemDetail> handleNewPasswordSameAsOld(
+            NewPasswordSameAsOldException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_REQUEST, "NEW_PASSWORD_SAME_AS_OLD",
+                "新密码与当前密码相同", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PasswordChangeConflictException.class)
+    public ResponseEntity<ProblemDetail> handlePasswordChangeConflict(
+            PasswordChangeConflictException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.CONFLICT, "PASSWORD_CHANGE_CONFLICT",
+                "密码修改冲突", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PasswordChangeRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handlePasswordChangeRateLimited(
+            PasswordChangeRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()))
+                .body(problem(request, HttpStatus.TOO_MANY_REQUESTS, "PASSWORD_CHANGE_RATE_LIMITED",
+                        "修改密码请求过于频繁", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PasswordChangeRateLimitUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handlePasswordChangeRateLimitUnavailable(
+            PasswordChangeRateLimitUnavailableException exception, HttpServletRequest request) {
+        Throwable failure = exception.getCause() == null ? exception : exception.getCause();
+        LOGGER.warn("Password change quota unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"), failure.getClass().getSimpleName(), sanitizedPasswordChangeFailure(failure));
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "PASSWORD_CHANGE_RATE_LIMIT_UNAVAILABLE",
+                "修改密码配额不可用", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PasswordChangeStoreUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handlePasswordChangeStoreUnavailable(
+            PasswordChangeStoreUnavailableException exception, HttpServletRequest request) {
+        Throwable failure = exception.getCause() == null ? exception : exception.getCause();
+        LOGGER.warn("Password change store unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"), failure.getClass().getSimpleName(), sanitizedPasswordChangeFailure(failure));
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "PASSWORD_CHANGE_STORE_UNAVAILABLE",
+                "密码存储不可用", exception.getMessage()));
+    }
+
+    private Throwable sanitizedPasswordChangeFailure(Throwable failure) {
+        // 数据库诊断可能包含摘要绑定值；保留调用位置，不透传底层消息或异常链。
+        var diagnostic = new RuntimeException("Password change dependency failure");
+        diagnostic.setStackTrace(failure.getStackTrace());
+        return diagnostic;
+    }
 
     @ExceptionHandler(UserProfileUpdateUnavailableException.class)
     public ResponseEntity<ProblemDetail> handleUserProfileUpdateUnavailable(
