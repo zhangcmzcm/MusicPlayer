@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 按项目已确认方式执行：Codex 唯一实现，Claude 独立只读审核，不派发实现子代理。缺失的执行子技能不声称已调用，按计划原生执行。用户已确认计划并授权执行；实现、文档、定向及完整自验已完成，待 Claude 独立审核。
+> 按项目已确认方式执行：Codex 唯一实现，Claude 独立只读审核，不派发实现子代理。缺失的执行子技能不声称已调用，按计划原生执行。实现已获Claude第1轮accepted，零阻断、零非阻断；用户已授权推送，部署条件仍须单独满足。
 
 **Goal:** 实现 U03 `PUT /api/v1/users/me/password`，已登录本人验证原密码后设置新密码，提交时递增 token_version，撤销当前及其他设备的全部旧 Token。
 
@@ -157,4 +157,4 @@
 - 共22个变更文件，按计划清单实现，无迁移、新配置或依赖，无已有登录/注册/过滤链实现改动。原设计历史前置状态由本计划的最新基线说明承接，不重复执行已accepted任务。
 - 未发现本地executing-plans子技能文件，按已约定方式由Codex原生完成，不声称调用缺失技能，不派发子代理。SMTP仅用于捕获真实验证码，MySQL/Redis/BCrypt/JWT正常路径均实跑。
 - Service单元注入事务启动/提交确认异常；MySQL真实事务验证回滚。未将前者包装成真实网络丢确认复现，API仍明确503可能已提交。
-- 审核材料：docs/reviews/2026-11-02-change-password-review.md；首次反馈不涉及。待Claude独立只读审核，不将自验记为accepted；无下一接口实现，未推送。
+- 审核材料：docs/reviews/2026-11-02-change-password-review.md；Claude第1轮accepted，零阻断、零非阻断。独立cleanTest check：925通过/0失败/0错误/0跳过，86类，8分17秒。已核实范围与结论，无修复事项；无下一接口实现，用户已授权推送。
