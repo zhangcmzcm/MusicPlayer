@@ -15,9 +15,13 @@
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
 | `username` | string | 是 | 3-20 位英文字母、数字、下划线；全局唯一 |
-| `password` | string | 是 | 8-128 个字符；HTTPS 传输；服务端 BCrypt 存储 |
+| `password` | string | 是 | 8—72 个 ASCII 可打印字符（U+0020—U+007E），禁止全空格；HTTPS 传输；服务端 BCrypt 存储 |
 | `email` | string/null | 否 | 合法邮箱；最多 120 个字符；保存为小写；全局唯一 |
 | `code` | string/null | 条件必填 | 6 位数字；提供 `email` 时必须提供，否则必须为空或不传 |
+
+密码允许英文大小写字母、数字、英文符号和普通空格，不要求同时包含多种字符类型。首尾空格原样保留，不 trim、不规范化、不截断或预哈希；每个允许字符恰好占一个 UTF-8 字节，72 字符符合 BCrypt 上限。中文、emoji、其他非 ASCII 字符、制表符、换行、DEL 等均拒绝。
+
+非法密码在进入注册 Service 前返回 `400 VALIDATION_FAILED`，不执行密码哈希、账户创建或邮箱验证码验证、消费。已有账户无需迁移，本次限制只作用于新注册密码，不改变已有密码的登录验证。
 
 ### 请求示例
 
@@ -64,7 +68,7 @@
 
 | HTTP | `code` | 场景 |
 | --- | --- | --- |
-| 400 | `VALIDATION_FAILED` | 请求格式、字段长度、条件必填或 JSON 不合法 |
+| 400 | `VALIDATION_FAILED` | 请求格式、字段长度、密码字符范围或全空格、条件必填或 JSON 不合法 |
 | 409 | `USERNAME_ALREADY_EXISTS` | 用户名已存在 |
 | 409 | `EMAIL_ALREADY_EXISTS` | 邮箱已存在 |
 | 409 | `USER_ALREADY_EXISTS` | 并发唯一约束冲突 |

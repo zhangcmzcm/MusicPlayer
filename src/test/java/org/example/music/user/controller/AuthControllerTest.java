@@ -11,6 +11,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import tools.jackson.databind.json.JsonMapper;
+import org.mockito.ArgumentCaptor;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import org.example.music.config.SecurityConfig;
 import org.example.music.user.service.UserAuthorizationStateService;
 import org.example.music.user.domain.UserRole;
@@ -32,6 +41,73 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(AuthController.class)
 @Import(SecurityConfig.class)
 class AuthControllerTest {
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    static Stream<String> invalidPasswords() {
+        return Stream.of(null, "", " ".repeat(8), "a".repeat(7), "a".repeat(73), "a".repeat(128),
+                "密码测试abcdefgh", "abcdefgh😀", "abcdefgh👩‍💻", "abcdefghé", "abcdefgh！",
+                "abcdefgh\u00a0", "abcdefgh\u007f", "abcdefgh\u0000", "abcdefgh\t",
+                "abcdefgh\r", "abcdefgh\n", "汉".repeat(24));
+    }
+
+    static Stream<String> validPasswords() {
+        String symbols = java.util.stream.IntStream.rangeClosed(33, 126)
+                .filter(value -> !Character.isLetterOrDigit(value))
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append).toString();
+        return Stream.of("a".repeat(8), "a".repeat(71), "a".repeat(72), "Abc12345", symbols,
+                " abcdefgh ", "abcdefgh~", "12345678");
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidPasswords")
+    void should_reject_registration_password_outside_ascii_policy(String password) throws Exception {
+        Map<String, Object> request = new HashMap<>();
+        request.put("username", "alice_2026");
+        request.put("password", password);
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.type").value("urn:problem:music:validation_failed"))
+                .andExpect(jsonPath("$.errors.password").exists());
+        verifyNoInteractions(userRegistrationService);
+    }
+
+    @Test
+    void should_reject_missing_registration_password() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"alice_2026\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.password").exists())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(userRegistrationService);
+    }
+
+    @ParameterizedTest
+    @MethodSource("validPasswords")
+    void should_preserve_valid_registration_password(String password) throws Exception {
+        when(userRegistrationService.register(any(UserRegisterRequest.class))).thenReturn(
+                new UserRegisterResponse(42, "alice_2026", null, UserRole.USER, Instant.EPOCH));
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON.writeValueAsString(Map.of("username", "alice_2026", "password", password))))
+                .andExpect(status().isCreated());
+        ArgumentCaptor<UserRegisterRequest> captor = ArgumentCaptor.forClass(UserRegisterRequest.class);
+        verify(userRegistrationService).register(captor.capture());
+        assertEquals(password, captor.getValue().password());
+    }
+
+    @Test
+    void should_not_echo_rejected_password() throws Exception {
+        String password = "unique-secret-禁止-9382";
+        String response = mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON.writeValueAsString(Map.of("username", "alice_2026", "password", password))))
+                .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+        assertFalse(response.contains(password));
+        assertFalse(response.contains(JSON.writeValueAsString(password)));
+        verifyNoInteractions(userRegistrationService);
+    }
 
     @Autowired
     private MockMvc mockMvc;
