@@ -66,6 +66,16 @@
 }
 ```
 
+密码字符范围不合法时，`errors` 的示例如下（密码原文不会出现在错误信息中）：
+
+```json
+{
+  "password": "must contain only printable ASCII characters (U+0020 to U+007E)"
+}
+```
+
+多个约束同时失败时，`errors.password` 只展示其中一项规则，不保证错误优先顺序。
+
 | HTTP | `code` | 场景 |
 | --- | --- | --- |
 | 400 | `VALIDATION_FAILED` | 请求格式、字段长度、密码字符范围或全空格、条件必填或 JSON 不合法 |

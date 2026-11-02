@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿用项目约定：Codex 唯一实现，Claude 独立只读审核，不派发实现子代理。通用执行子技能若本地不存在，不声称已调用；按本计划原生执行。书面计划已获用户确认；实现与自验完成，待 Claude 独立审核。
+> 执行方式沿用项目约定：Codex 唯一实现，Claude 独立只读审核，不派发实现子代理。通用执行子技能若本地不存在，不声称已调用；按本计划原生执行。实现已获 Claude 第 1 轮 accepted，用户已授权推送。
 
 **Goal:** 修复 `POST /api/v1/auth/register` 密码校验与 BCrypt 上限不符的问题，创建密码仅接受非全空格的 8—72 个 ASCII 可打印字符。
 
@@ -86,4 +86,4 @@
 - 最终完整命令：设置 MINIO_INTEGRATION_TESTS=true 后执行 .\gradlew.bat cleanTest check；BUILD SUCCESSFUL，8 分 28 秒，XML 汇总 802 通过 / 0 失败 / 0 错误 / 0 跳过，81 类。
 - OpenAPI pattern 显式起点和严格终点，避免 JSON Schema 搜索语义或尾部换行放宽字符描述；运行时仍用 Bean Validation 完整匹配。
 - 本地未发现 executing-plans 子技能文件，按已约定的 Codex 原生执行方式完成，没有派发子代理或声称调用缺失技能。
-- 首轮审核材料：docs/reviews/2026-11-02-registration-password-review.md。尚未获 Claude accepted；没有开始下一个接口，也未推送。
+- 首轮审核材料：docs/reviews/2026-11-02-registration-password-review.md。Claude 已 accepted；独立完整回归 802/0/0/0、81 类、8 分 25 秒。NOTE-001 单独排期 O15，NOTE-002 文档示例已补充；没有开始下一个接口，用户已授权推送。

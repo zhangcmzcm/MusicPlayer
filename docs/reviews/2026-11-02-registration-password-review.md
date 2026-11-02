@@ -1,6 +1,6 @@
 # 注册密码边界修复首轮审核材料
 
-日期：2026-11-02。审核状态：待 Claude 独立审核，第 1/3 轮；Codex 自验不等于 accepted。
+日期：2026-11-02。审核状态：Claude 独立审核第 1/3 轮 accepted，零阻断、两条非阻断意见；处置记录见文末。
 
 ## 本次接口与权限
 
@@ -99,3 +99,14 @@ curl.exe --request POST 'http://localhost:8080/api/v1/auth/register' `
 ## 审核反馈复核与处置
 
 首次提交：不涉及。等待 Claude 独立审核，不自行将自验通过记为审核通过。
+
+## 第 1 轮审核回执与处置
+
+用户提供 Claude 报告：accepted，基线 main @ 2902e07；独立运行 `$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain`，BUILD SUCCESSFUL，8 分 25 秒；802 通过、0 失败、0 错误、0 跳过，81 类。实现 29d3f3e、37c294f 确认通过，不需要第 2 轮阻断项复核。用户已授权核实无误后推送。
+
+| 问题编号与原分级 | 问题核实及证据 | 分级判断 | 修改方向判断 | 实际处置 | 验证结果或待复核事项 |
+| --- | --- | --- | --- | --- | --- |
+| NOTE-001 非阻断，AdminBootstrapInitializer.java:57,69，启动密码缺少 BCrypt 边界校验 | 成立，但仅在初始化已启用、无现有 ADMIN、用户名/邮箱可用且实际走到哈希时触发；requiredValue 仅拒绝 null/空白，hash 前无长度约束 | 认可非阻断；设计明确排除初始化，不影响已确认的注册入口规则 | 认可独立任务；后续需确认是完整对齐 ASCII 创建规则还是仅明确 BCrypt 边界，不在此处默认改变管理员密码政策 | 排期到任务书 O15，未修改初始化代码 | 静态复核 requiredValue、初始化提前退出与 hash 调用路径；本轮无需为未修改代码新增测试 |
+| NOTE-002 非阻断，register-user.md:55-67，缺少 password 字段错误示例 | 成立；原示例仅展示 emailCodePairValid，虽然字段表和错误表已说明密码规则，但缺少对应 errors 示例 | 认可非阻断，属于客户端文档便利性 | 认可补充示例，复用现有实际约束消息，不更改响应契约 | 已补充 errors.password 示例，并说明多个约束失败时不保证优先顺序 | 文案核对 UserRegisterRequest 的 @Pattern 消息；git diff --check 通过。审核后仅改文档，未重复运行 8 分钟完整测试 |
+
+审核回执之后仅更新 API 示例、处置/计划记录和任务书；无运行时代码变化。完整测试证据继续适用于实现 37c294f，不能将文档更新描述成新的独立测试运行。
