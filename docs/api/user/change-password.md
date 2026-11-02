@@ -45,7 +45,7 @@ BCrypt与Redis不在数据库写事务内。按用户ID、二进制旧摘要、�
 
 ## 错误
 
-业务错误为 RFC 9457 `application/problem+json`，携带稳定 code、下划线 urn，通过响应头 `X-Trace-Id` 关联日志，禁止缓存，不含密码、摘要、底层SQL或Redis key。
+业务错误为 RFC 9457 `application/problem+json`，携带稳定 code、下划线 urn，禁止缓存，不含密码、摘要、底层SQL或Redis key。进入 MVC 后的请求通过响应头 `X-Trace-Id` 关联日志；认证链提前拒绝的响应沿用既有追踪行为，不保证该头存在。
 
 | HTTP | code | 场景 |
 | --- | --- | --- |
