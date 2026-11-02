@@ -16,9 +16,27 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 class PasswordLoginServiceTest {
+    @Test
+    void should_capture_time_immediately_after_successful_matches() {
+        var clock = mock(java.time.Clock.class);
+        var start = java.time.Instant.parse("2026-11-02T12:00:00Z");
+        var completed = start.plusSeconds(30).plusMillis(900);
+        var current = new java.util.concurrent.atomic.AtomicReference<>(start);
+        when(clock.instant()).thenAnswer(invocation -> current.get());
+        var user = UserEntity.create("alice", null, "hash");
+        when(users.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(hasher.matches("password", "hash")).thenAnswer(invocation -> {
+            current.set(completed);
+            return true;
+        });
+        var result = new PasswordLoginService(users, hasher, clock)
+                .authenticate(LoginType.USERNAME_PASSWORD, "alice", "password");
+        assertEquals(completed.truncatedTo(java.time.temporal.ChronoUnit.SECONDS), result.authenticatedAt());
+        verify(clock, times(1)).instant();
+    }
     private final UserRepository users = mock(UserRepository.class);
     private final PasswordHasher hasher = mock(PasswordHasher.class);
-    private final PasswordLoginService service = new PasswordLoginService(users, hasher);
+    private final PasswordLoginService service = new PasswordLoginService(users, hasher, java.time.Clock.systemUTC());
 
     @ParameterizedTest
     @CsvSource({"USERNAME_PASSWORD,0", "USERNAME_PASSWORD,7", "EMAIL_PASSWORD,0", "EMAIL_PASSWORD,7"})

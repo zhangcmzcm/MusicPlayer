@@ -28,11 +28,36 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class EmailCodeLoginServiceTest {
 
+    @Test
+    void should_capture_validate_time_before_query_and_consume_delays() {
+        var verified = java.time.Instant.parse("2026-11-02T12:00:00.900Z");
+        var current = new java.util.concurrent.atomic.AtomicReference<>(java.time.Instant.EPOCH);
+        org.mockito.Mockito.doAnswer(invocation -> current.get()).when(clock).instant();
+        when(emailVerificationCodeService.validate("alice@example.com", "123456", VerificationCodePurpose.LOGIN))
+                .thenAnswer(invocation -> {
+                    current.set(verified);
+                    return new VerifiedEmailCode("alice@example.com", "version", VerificationCodePurpose.LOGIN);
+                });
+        when(userRepository.findByEmail("alice@example.com")).thenAnswer(invocation -> {
+            current.set(verified.plusSeconds(50));
+            return Optional.of(UserEntity.create("alice", "alice@example.com", "hash"));
+        });
+        when(emailVerificationCodeService.consume(any(VerifiedEmailCode.class))).thenAnswer(invocation -> {
+            current.set(verified.plusSeconds(100));
+            return true;
+        });
+        assertEquals(verified.truncatedTo(java.time.temporal.ChronoUnit.SECONDS),
+                service.authenticate("alice@example.com", "123456").authenticatedAt());
+    }
+
     @Mock
     private UserRepository userRepository;
 
     @Mock
     private EmailVerificationCodeService emailVerificationCodeService;
+
+    @org.mockito.Spy
+    private java.time.Clock clock = java.time.Clock.systemUTC();
 
     @InjectMocks
     private EmailCodeLoginService service;

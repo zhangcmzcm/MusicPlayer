@@ -9,6 +9,10 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.DateTimeException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.example.music.user.domain.LoginPrincipal;
 import org.example.music.user.domain.LoginTicketContext;
 import org.example.music.user.domain.UserRole;
@@ -27,18 +31,18 @@ public class LoginTicketService {
     private static final String KEY_PREFIX = "music:auth:login-ticket:";
     private static final int TICKET_BYTES = 32;
     private static final long TICKET_TTL_SECONDS = 300;
-    private static final Set<String> TICKET_FIELDS = Set.of("userId", "maximumRole", "loginType", "tokenVersion");
+    private static final Set<String> TICKET_FIELDS = Set.of("userId", "maximumRole", "loginType", "tokenVersion", "authTime");
     private static final RedisScript<Long> ISSUE = new DefaultRedisScript<>(
             """
-            if #ARGV ~= 5 or tonumber(ARGV[5]) ~= 300 then
+            if #ARGV ~= 6 or tonumber(ARGV[6]) ~= 300 then
               return redis.error_reply('Invalid ticket parameters')
             end
             if redis.call('EXISTS', KEYS[1]) ~= 0 then
               return 0
             end
             redis.call('HSET', KEYS[1], 'userId', ARGV[1], 'maximumRole', ARGV[2],
-              'loginType', ARGV[3], 'tokenVersion', ARGV[4])
-            return redis.call('EXPIRE', KEYS[1], ARGV[5])
+              'loginType', ARGV[3], 'tokenVersion', ARGV[4], 'authTime', ARGV[5])
+            return redis.call('EXPIRE', KEYS[1], ARGV[6])
             """, Long.class);
     private static final RedisScript<List> CONSUME = new DefaultRedisScript<>(
             """
@@ -56,14 +60,17 @@ public class LoginTicketService {
 
     private final StringRedisTemplate redisTemplate;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final Clock clock;
 
-    public LoginTicketService(StringRedisTemplate redisTemplate) {
+    public LoginTicketService(StringRedisTemplate redisTemplate, @Qualifier("authenticationClock") Clock clock) {
         this.redisTemplate = redisTemplate;
+        this.clock = clock;
     }
 
     public String issue(LoginPrincipal principal, LoginType loginType) {
         if (principal.id() == null || principal.id() <= 0 || principal.tokenVersion() < 0
-                || principal.maximumRole() == null || loginType == null || loginType == LoginType.ROLE_SELECTION) {
+                || principal.maximumRole() == null || loginType == null || loginType == LoginType.ROLE_SELECTION
+                || principal.authenticatedAt().isBefore(Instant.EPOCH) || principal.authenticatedAt().isAfter(clock.instant())) {
             throw new IllegalArgumentException("Invalid verified login context");
         }
         byte[] ticketBytes = new byte[TICKET_BYTES];
@@ -74,6 +81,7 @@ public class LoginTicketService {
         try {
             Long published = redisTemplate.execute(ISSUE, List.of(key), String.valueOf(principal.id()),
                     principal.maximumRole().name(), loginType.name(), String.valueOf(principal.tokenVersion()),
+                    String.valueOf(principal.authenticatedAt().getEpochSecond()),
                     String.valueOf(TICKET_TTL_SECONDS));
             if (!Long.valueOf(1L).equals(published)) {
                 throw new AuthStateStoreUnavailableException("Login ticket publication was not confirmed",
@@ -105,22 +113,28 @@ public class LoginTicketService {
             }
             if (!fields.keySet().equals(TICKET_FIELDS)
                     || !fields.get("userId").matches("[1-9][0-9]*")
-                    || !fields.get("tokenVersion").matches("0|[1-9][0-9]*")) {
+                    || !fields.get("tokenVersion").matches("0|[1-9][0-9]*")
+                    || !fields.get("authTime").matches("0|[1-9][0-9]*")) {
                 throw new LoginTicketInvalidException();
             }
             LoginType loginType = LoginType.valueOf(fields.get("loginType"));
             if (loginType == LoginType.ROLE_SELECTION) {
                 throw new LoginTicketInvalidException();
             }
+            Instant authenticatedAt = Instant.ofEpochSecond(Long.parseLong(fields.get("authTime")));
+            if (authenticatedAt.isAfter(clock.instant())) {
+                throw new LoginTicketInvalidException();
+            }
             return new LoginTicketContext(
                     Integer.parseInt(fields.get("userId")),
                     UserRole.valueOf(fields.get("maximumRole")),
                     loginType,
-                    Long.parseLong(fields.get("tokenVersion"))
+                    Long.parseLong(fields.get("tokenVersion")),
+                    authenticatedAt
             );
         } catch (DataAccessException exception) {
             throw new AuthStateStoreUnavailableException("Authentication state store is unavailable", exception);
-        } catch (IllegalArgumentException exception) {
+        } catch (IllegalArgumentException | DateTimeException exception) {
             throw new LoginTicketInvalidException();
         }
     }

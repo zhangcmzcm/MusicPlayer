@@ -323,7 +323,7 @@ class TrackCoverIntegrationTest {
     }
 
     private String issueToken(UserEntity user, UserRole loginRole) {
-        return jwtTokenService.issue(new UserAuthorizationSnapshot(
+        return jwtTokenService.issueLegacyWithoutAuthTime(new UserAuthorizationSnapshot(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),

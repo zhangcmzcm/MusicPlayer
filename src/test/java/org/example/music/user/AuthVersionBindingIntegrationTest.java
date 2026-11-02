@@ -131,7 +131,7 @@ class AuthVersionBindingIntegrationTest {
         if (accountRole == UserRole.ADMIN) {
             String ticket = tree(result).path("roleSelection").path("loginTicket").asText();
             var fields = redis.opsForHash().entries(ticketKey(ticket));
-            assertEquals(Set.of("userId", "maximumRole", "loginType", "tokenVersion"), fields.keySet());
+            assertEquals(Set.of("userId", "maximumRole", "loginType", "tokenVersion", "authTime"), fields.keySet());
             assertEquals(String.valueOf(version), fields.get("tokenVersion"));
             Long ttl = redis.getExpire(ticketKey(ticket), TimeUnit.MILLISECONDS);
             assertNotNull(ttl);
@@ -161,7 +161,7 @@ class AuthVersionBindingIntegrationTest {
         MvcResult result = during(() -> login(passwordBody(type)), verified, resume, () -> bump(user.getId()));
         problem(result, 401, "INVALID_CREDENTIALS");
         verify(tickets, never()).issue(any(), any());
-        verify(jwtTokens, never()).issue(any(), any(), any());
+        verify(jwtTokens, never()).issue(any(), any(), any(), any());
     }
 
     @ParameterizedTest
@@ -178,7 +178,7 @@ class AuthVersionBindingIntegrationTest {
                         : "update users set user_role = ? where id = ?", after.name(), user.getId()));
         problem(result, 401, "INVALID_CREDENTIALS");
         verify(tickets, never()).issue(any(), any());
-        verify(jwtTokens, never()).issue(any(), any(), any());
+        verify(jwtTokens, never()).issue(any(), any(), any(), any());
     }
 
     @Test
@@ -228,7 +228,7 @@ class AuthVersionBindingIntegrationTest {
         problem(login(selectionBody(ticket, UserRole.ADMIN)), 401, "LOGIN_TICKET_INVALID");
         assertFalse(Boolean.TRUE.equals(redis.hasKey(ticketKey(ticket))));
         problem(login(selectionBody(ticket, UserRole.ADMIN)), 401, "LOGIN_TICKET_INVALID");
-        verify(jwtTokens, never()).issue(any(), any(), any());
+        verify(jwtTokens, never()).issue(any(), any(), any(), any());
     }
 
     @ParameterizedTest
@@ -238,7 +238,7 @@ class AuthVersionBindingIntegrationTest {
         String ticket = "test-ticket-" + kind;
         String key = ticketKey(ticket);
         var fields = new java.util.HashMap<>(Map.of("userId", user.getId().toString(), "maximumRole", "ADMIN",
-                "loginType", "USERNAME_PASSWORD", "tokenVersion", "0"));
+                "loginType", "USERNAME_PASSWORD", "tokenVersion", "0", "authTime", "0"));
         if (kind.equals("legacy")) fields.remove("tokenVersion");
         if (kind.equals("missing")) fields.remove("maximumRole");
         if (kind.equals("extra")) fields.put("unknown", "value");
@@ -256,7 +256,7 @@ class AuthVersionBindingIntegrationTest {
         String ticket = "test-version-ticket";
         String key = ticketKey(ticket);
         redis.opsForHash().putAll(key, Map.of("userId", user.getId().toString(), "maximumRole", "ADMIN",
-                "loginType", "EMAIL_PASSWORD", "tokenVersion", version));
+                "loginType", "EMAIL_PASSWORD", "tokenVersion", version, "authTime", "0"));
         redis.expire(key, Duration.ofSeconds(300));
         problem(login(selectionBody(ticket, UserRole.USER)), 401, "LOGIN_TICKET_INVALID");
         assertFalse(Boolean.TRUE.equals(redis.hasKey(key)));
@@ -306,7 +306,7 @@ class AuthVersionBindingIntegrationTest {
             beforeEncoding.countDown();
             await(resume);
             return real(jwtTokens, invocation);
-        }).when(jwtTokens).issue(any(), any(), any());
+        }).when(jwtTokens).issue(any(), any(), any(), any());
         Callable<MvcResult> request = () -> role == UserRole.ADMIN
                 ? login(selectionBody(ticketFromLogin(), UserRole.ADMIN)) : login(passwordBody(LoginType.USERNAME_PASSWORD));
         MvcResult result = during(request, beforeEncoding, resume, () -> bump(user.getId()));
@@ -371,7 +371,7 @@ class AuthVersionBindingIntegrationTest {
         }).when(redis).execute(any(RedisScript.class), anyList(), any(Object[].class));
         problem(login(operation.equals("consume") ? selectionBody(ticket, UserRole.ADMIN)
                 : passwordBody(LoginType.USERNAME_PASSWORD)), 503, "AUTH_STATE_STORE_UNAVAILABLE");
-        verify(jwtTokens, never()).issue(any(), any(), any());
+        verify(jwtTokens, never()).issue(any(), any(), any(), any());
     }
 
     private void pauseAfterPasswordVerification(CountDownLatch reached, CountDownLatch resume) {

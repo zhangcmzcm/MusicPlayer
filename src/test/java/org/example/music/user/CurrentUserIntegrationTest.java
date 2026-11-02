@@ -241,7 +241,7 @@ class CurrentUserIntegrationTest {
     }
 
     private String issue(UserEntity user, UserRole role) {
-        return tokens.issue(new UserAuthorizationSnapshot(user.getId(), user.getUsername(), user.getEmail(),
+        return tokens.issueLegacyWithoutAuthTime(new UserAuthorizationSnapshot(user.getId(), user.getUsername(), user.getEmail(),
                 user.getUserRole(), user.getTokenVersion()), role, LoginType.USERNAME_PASSWORD).tokenValue();
     }
 

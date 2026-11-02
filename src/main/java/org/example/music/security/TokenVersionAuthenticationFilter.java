@@ -7,6 +7,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.math.BigInteger;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.DateTimeException;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.example.music.common.security.SecurityProblemResponseWriter;
 import org.example.music.user.domain.UserAuthorizationSnapshot;
 import org.example.music.user.domain.UserRole;
@@ -28,13 +34,16 @@ public class TokenVersionAuthenticationFilter extends OncePerRequestFilter {
 
     private final UserAuthorizationStateService userAuthorizationStateService;
     private final SecurityProblemResponseWriter securityProblemResponseWriter;
+    private final Clock clock;
 
     public TokenVersionAuthenticationFilter(
             UserAuthorizationStateService userAuthorizationStateService,
-            SecurityProblemResponseWriter securityProblemResponseWriter
+            SecurityProblemResponseWriter securityProblemResponseWriter,
+            @Qualifier("authenticationClock") Clock clock
     ) {
         this.userAuthorizationStateService = userAuthorizationStateService;
         this.securityProblemResponseWriter = securityProblemResponseWriter;
+        this.clock = clock;
     }
 
     @Override
@@ -53,6 +62,7 @@ public class TokenVersionAuthenticationFilter extends OncePerRequestFilter {
             Integer userId = parseUserId(jwtAuthenticationToken.getToken().getSubject());
             long tokenVersion = parseTokenVersion(jwtAuthenticationToken.getToken().getClaims().get("tokenVersion"));
             UserRole loginRole = parseLoginRole(jwtAuthenticationToken.getToken().getClaims().get("role"));
+            Instant authenticatedAt = parseAuthenticationTime(jwtAuthenticationToken.getToken());
 
             Optional<UserAuthorizationSnapshot> snapshotResult =
                     userAuthorizationStateService.findSnapshot(userId);
@@ -73,6 +83,7 @@ public class TokenVersionAuthenticationFilter extends OncePerRequestFilter {
                     List.of(new SimpleGrantedAuthority("ROLE_" + loginRole.name()))
             );
             SecurityContext context = SecurityContextHolder.createEmptyContext();
+            authorized.setDetails(new AuthenticatedSessionContext(tokenVersion, authenticatedAt));
             context.setAuthentication(authorized);
             SecurityContextHolder.setContext(context);
         } catch (InvalidTokenException | IllegalArgumentException exception) {
@@ -84,6 +95,31 @@ public class TokenVersionAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private Instant parseAuthenticationTime(Jwt jwt) {
+        if (!jwt.getClaims().containsKey("auth_time")) {
+            return null;
+        }
+        Object claim = jwt.getClaims().get("auth_time");
+        final long seconds;
+        try {
+            if (claim instanceof BigInteger integer) {
+                seconds = integer.longValueExact();
+            } else if (claim instanceof Byte || claim instanceof Short || claim instanceof Integer || claim instanceof Long) {
+                seconds = ((Number) claim).longValue();
+            } else {
+                throw new InvalidTokenException();
+            }
+            Instant authenticatedAt = Instant.ofEpochSecond(seconds);
+            if (seconds < 0 || jwt.getIssuedAt() == null || authenticatedAt.isAfter(jwt.getIssuedAt())
+                    || authenticatedAt.isAfter(clock.instant())) {
+                throw new InvalidTokenException();
+            }
+            return authenticatedAt;
+        } catch (ArithmeticException | DateTimeException exception) {
+            throw new InvalidTokenException();
+        }
     }
 
     private Integer parseUserId(String subject) {

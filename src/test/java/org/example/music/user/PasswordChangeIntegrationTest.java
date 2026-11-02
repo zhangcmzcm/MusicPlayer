@@ -112,7 +112,7 @@ class PasswordChangeIntegrationTest {
     }
 
     private String token(UserEntity user, UserRole role) {
-        return tokens.issue(users.findAuthorizationSnapshot(user.getId()).orElseThrow(), role,
+        return tokens.issueLegacyWithoutAuthTime(users.findAuthorizationSnapshot(user.getId()).orElseThrow(), role,
                 LoginType.USERNAME_PASSWORD).tokenValue();
     }
 
@@ -416,7 +416,7 @@ class PasswordChangeIntegrationTest {
                 reached.countDown();
                 assertTrue(resume.await(20, TimeUnit.SECONDS));
                 return real(tokens, invocation);
-            }).when(tokens).issue(any(), eq(UserRole.USER), eq(LoginType.USERNAME_PASSWORD));
+            }).when(tokens).issue(any(), eq(UserRole.USER), eq(LoginType.USERNAME_PASSWORD), any());
         }
         Callable<MvcResult> pending = () -> login(ticket == null
                 ? Map.of("loginType", "USERNAME_PASSWORD", "account", "alice", "password", "old-password")

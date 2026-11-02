@@ -40,6 +40,28 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class UserLoginServiceTest {
 
+    @org.junit.jupiter.api.AfterEach
+    void should_never_use_legacy_signing_for_interactive_login() {
+        verify(jwtTokenService, never()).issueLegacyWithoutAuthTime(any(), any(), any());
+    }
+
+    @Test
+    void should_preserve_ticket_authentication_time_when_clock_advances() {
+        var verified = Instant.parse("2026-11-02T12:00:00Z");
+        org.mockito.Mockito.doReturn(verified.plusSeconds(600)).when(clock).instant();
+        assertEquals(verified.plusSeconds(600), clock.instant());
+        var request = new LoginRequest(LoginType.ROLE_SELECTION, null, null, null, null, "ticket", UserRole.USER);
+        allow(request);
+        when(loginTicketService.consume("ticket")).thenReturn(
+                new LoginTicketContext(1, UserRole.ADMIN, LoginType.EMAIL_CODE, 7, verified));
+        var snapshot = new UserAuthorizationSnapshot(1, "alice", null, UserRole.ADMIN, 7);
+        when(userAuthorizationStateService.findSnapshot(1)).thenReturn(Optional.of(snapshot));
+        when(jwtTokenService.issue(snapshot, UserRole.USER, LoginType.EMAIL_CODE, verified))
+                .thenReturn(new JwtTokenResult("jwt", verified.plusSeconds(90000)));
+        assertEquals(LoginStatus.AUTHENTICATED, service.login(request, "127.0.0.1").status());
+        verify(jwtTokenService).issue(snapshot, UserRole.USER, LoginType.EMAIL_CODE, verified);
+    }
+
     @Mock
     private PasswordLoginService passwordLoginService;
 
@@ -61,6 +83,9 @@ class UserLoginServiceTest {
     @Mock
     private JwtTokenService jwtTokenService;
 
+    @org.mockito.Spy
+    private java.time.Clock clock = java.time.Clock.systemUTC();
+
     @InjectMocks
     private UserLoginService service;
 
@@ -75,7 +100,7 @@ class UserLoginServiceTest {
                 null,
                 null
         );
-        LoginPrincipal principal = new LoginPrincipal(1, "alice", null, UserRole.USER, 0L);
+        LoginPrincipal principal = new LoginPrincipal(1, "alice", null, UserRole.USER, 0L, java.time.Instant.EPOCH);
         UserAuthorizationSnapshot snapshot = new UserAuthorizationSnapshot(
                 1,
                 "alice",
@@ -88,7 +113,7 @@ class UserLoginServiceTest {
         when(passwordLoginService.authenticate(LoginType.USERNAME_PASSWORD, "alice", "correct-password"))
                 .thenReturn(principal);
         when(userAuthorizationStateService.findSnapshot(1)).thenReturn(Optional.of(snapshot));
-        when(jwtTokenService.issue(snapshot, UserRole.USER, LoginType.USERNAME_PASSWORD))
+        when(jwtTokenService.issue(snapshot, UserRole.USER, LoginType.USERNAME_PASSWORD, java.time.Instant.EPOCH))
                 .thenReturn(new JwtTokenResult("jwt", Instant.parse("2026-10-24T00:00:00Z")));
 
         LoginResponse response = service.login(request, "127.0.0.1");
@@ -109,7 +134,7 @@ class UserLoginServiceTest {
                 null,
                 null
         );
-        LoginPrincipal principal = new LoginPrincipal(2, "admin", "admin@example.com", UserRole.ADMIN, 0L);
+        LoginPrincipal principal = new LoginPrincipal(2, "admin", "admin@example.com", UserRole.ADMIN, 0L, java.time.Instant.EPOCH);
         when(loginRateLimiter.consumeRequest(eq("admin@example.com"), eq("127.0.0.1")))
                 .thenReturn(LoginRateLimitDecision.allowedDecision());
         when(passwordLoginService.authenticate(LoginType.EMAIL_PASSWORD, "admin@example.com", "correct-password"))
@@ -149,8 +174,7 @@ class UserLoginServiceTest {
                 1,
                 UserRole.USER,
                 LoginType.USERNAME_PASSWORD,
-                0L
-        ));
+                0L, java.time.Instant.EPOCH));
         when(userAuthorizationStateService.findSnapshot(1)).thenReturn(Optional.of(snapshot));
 
         assertThrows(RoleSelectionNotAllowedException.class, () -> service.login(request, "127.0.0.1"));
@@ -213,7 +237,7 @@ class UserLoginServiceTest {
             LoginType type, UserRole role, String failure
     ) {
         LoginRequest request = initialRequest(type);
-        LoginPrincipal principal = new LoginPrincipal(1, "alice", "alice@example.com", role, 7L);
+        LoginPrincipal principal = new LoginPrincipal(1, "alice", "alice@example.com", role, 7L, java.time.Instant.EPOCH);
         allow(request);
         if (type == LoginType.EMAIL_CODE) {
             when(emailCodeLoginService.authenticate(request.email(), request.code())).thenReturn(principal);
@@ -236,7 +260,7 @@ class UserLoginServiceTest {
     void should_reject_invalid_ticket_snapshot_without_signing(String failure) {
         LoginRequest request = new LoginRequest(LoginType.ROLE_SELECTION, null, null, null, null, "ticket", UserRole.USER);
         allow(request);
-        when(loginTicketService.consume("ticket")).thenReturn(new LoginTicketContext(1, UserRole.ADMIN, LoginType.EMAIL_PASSWORD, 7L));
+        when(loginTicketService.consume("ticket")).thenReturn(new LoginTicketContext(1, UserRole.ADMIN, LoginType.EMAIL_PASSWORD, 7L, java.time.Instant.EPOCH));
         when(userAuthorizationStateService.findSnapshot(1)).thenReturn(failure.equals("missing") ? Optional.empty()
                 : Optional.of(new UserAuthorizationSnapshot(1, "admin", null,
                         failure.equals("role") ? UserRole.USER : UserRole.ADMIN, failure.equals("version") ? 8L : 7L)));
@@ -248,17 +272,17 @@ class UserLoginServiceTest {
     @Test
     void should_sign_only_the_matched_immutable_snapshot_without_later_refresh() {
         LoginRequest request = initialRequest(LoginType.USERNAME_PASSWORD);
-        LoginPrincipal principal = new LoginPrincipal(1, "old_name", null, UserRole.USER, 7L);
+        LoginPrincipal principal = new LoginPrincipal(1, "old_name", null, UserRole.USER, 7L, java.time.Instant.EPOCH);
         UserAuthorizationSnapshot matched = new UserAuthorizationSnapshot(1, "new_name", "alice@example.com", UserRole.USER, 7L);
         allow(request);
         when(passwordLoginService.authenticate(request.loginType(), request.account(), request.password())).thenReturn(principal);
         when(userAuthorizationStateService.findSnapshot(1)).thenReturn(Optional.of(matched),
                 Optional.of(new UserAuthorizationSnapshot(1, "new_name", "alice@example.com", UserRole.USER, 8L)));
-        when(jwtTokenService.issue(matched, UserRole.USER, LoginType.USERNAME_PASSWORD))
+        when(jwtTokenService.issue(matched, UserRole.USER, LoginType.USERNAME_PASSWORD, java.time.Instant.EPOCH))
                 .thenReturn(new JwtTokenResult("jwt", Instant.now().plusSeconds(600)));
         assertEquals("new_name", service.login(request, "127.0.0.1").authentication().user().username());
         verify(userAuthorizationStateService, times(1)).findSnapshot(1);
-        verify(jwtTokenService).issue(org.mockito.ArgumentMatchers.same(matched), eq(UserRole.USER), eq(LoginType.USERNAME_PASSWORD));
+        verify(jwtTokenService).issue(org.mockito.ArgumentMatchers.same(matched), eq(UserRole.USER), eq(LoginType.USERNAME_PASSWORD), eq(java.time.Instant.EPOCH));
         verify(loginRateLimiter, never()).recordFailure(any());
     }
 

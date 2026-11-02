@@ -1,6 +1,9 @@
 package org.example.music.user.service;
 
 import java.util.Locale;
+import java.time.Clock;
+import java.time.temporal.ChronoUnit;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.example.music.user.domain.LoginPrincipal;
 import org.example.music.user.domain.UserEntity;
 import org.example.music.user.exception.InvalidCredentialsException;
@@ -16,13 +19,16 @@ public class EmailCodeLoginService {
 
     private final UserRepository userRepository;
     private final EmailVerificationCodeService emailVerificationCodeService;
+    private final Clock clock;
 
     public EmailCodeLoginService(
             UserRepository userRepository,
-            EmailVerificationCodeService emailVerificationCodeService
+            EmailVerificationCodeService emailVerificationCodeService,
+            @Qualifier("authenticationClock") Clock clock
     ) {
         this.userRepository = userRepository;
         this.emailVerificationCodeService = emailVerificationCodeService;
+        this.clock = clock;
     }
 
     public LoginPrincipal authenticate(String email, String code) {
@@ -38,6 +44,7 @@ public class EmailCodeLoginService {
             throw new InvalidCredentialsException();
         }
 
+        var authenticatedAt = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         UserEntity user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(InvalidCredentialsException::new);
         LoginPrincipal principal = new LoginPrincipal(
@@ -45,7 +52,8 @@ public class EmailCodeLoginService {
                 user.getUsername(),
                 user.getEmail(),
                 user.getUserRole(),
-                user.getTokenVersion()
+                user.getTokenVersion(),
+                authenticatedAt
         );
         if (!emailVerificationCodeService.consume(verifiedEmailCode)) {
             throw new InvalidCredentialsException();

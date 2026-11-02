@@ -3,6 +3,8 @@ package org.example.music.config;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+import java.time.Clock;
 import javax.crypto.spec.SecretKeySpec;
 import org.example.music.common.security.SecurityProblemResponseWriter;
 import org.example.music.security.JwtAuthenticationConverterProvider;
@@ -25,6 +27,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.jwt.MappedJwtClaimSetConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -32,6 +35,11 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    @Bean
+    public Clock authenticationClock() {
+        return Clock.systemUTC();
+    }
 
     @Bean
     public JwtEncoder jwtEncoder(@Value("${app.jwt.secret}") String secret) {
@@ -61,6 +69,15 @@ public class SecurityConfig {
                 JwtValidators.createDefaultWithIssuer(issuer),
                 audienceValidator
         ));
+        var defaultConverter = MappedJwtClaimSetConverter.withDefaults(Map.of());
+        decoder.setClaimSetConverter(claims -> {
+            var converted = defaultConverter.convert(claims);
+            // 默认转换器会以 exp-1 补 iat；认证时间不能与未经签名的推算值比较。
+            if (claims.containsKey("auth_time") && claims.get("iat") == null) {
+                converted.remove("iat");
+            }
+            return converted;
+        });
         return decoder;
     }
 

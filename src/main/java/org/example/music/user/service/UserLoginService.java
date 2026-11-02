@@ -1,6 +1,8 @@
 package org.example.music.user.service;
 
 import java.time.Instant;
+import java.time.Clock;
+import org.springframework.beans.factory.annotation.Qualifier;
 import java.util.Locale;
 import java.util.Optional;
 import org.example.music.security.JwtTokenResult;
@@ -31,6 +33,7 @@ public class UserLoginService {
     private final UserAuthorizationStateService userAuthorizationStateService;
     private final UserLoginActivityService userLoginActivityService;
     private final JwtTokenService jwtTokenService;
+    private final Clock clock;
 
     public UserLoginService(
             PasswordLoginService passwordLoginService,
@@ -39,7 +42,8 @@ public class UserLoginService {
             LoginRateLimiter loginRateLimiter,
             UserAuthorizationStateService userAuthorizationStateService,
             UserLoginActivityService userLoginActivityService,
-            JwtTokenService jwtTokenService
+            JwtTokenService jwtTokenService,
+            @Qualifier("authenticationClock") Clock clock
     ) {
         this.passwordLoginService = passwordLoginService;
         this.emailCodeLoginService = emailCodeLoginService;
@@ -48,6 +52,7 @@ public class UserLoginService {
         this.userAuthorizationStateService = userAuthorizationStateService;
         this.userLoginActivityService = userLoginActivityService;
         this.jwtTokenService = jwtTokenService;
+        this.clock = clock;
     }
 
     public LoginResponse login(LoginRequest request, String clientIp) {
@@ -89,14 +94,14 @@ public class UserLoginService {
                 .orElseThrow(InvalidCredentialsException::new);
         if (snapshot.userRole() == UserRole.ADMIN) {
             LoginPrincipal verified = new LoginPrincipal(snapshot.userId(), snapshot.username(), snapshot.email(),
-                    snapshot.userRole(), snapshot.tokenVersion());
+                    snapshot.userRole(), snapshot.tokenVersion(), principal.authenticatedAt());
             return LoginResponse.roleSelectionRequired(new RoleSelectionResponse(
                     loginTicketService.issue(verified, loginType),
-                    Instant.now().plusSeconds(300)
+                    clock.instant().plusSeconds(300)
             ));
         }
 
-        return completeLogin(snapshot, UserRole.USER, loginType);
+        return completeLogin(snapshot, UserRole.USER, loginType, principal.authenticatedAt());
     }
 
     private LoginResponse completeRoleSelection(LoginRequest request) {
@@ -108,16 +113,17 @@ public class UserLoginService {
             throw new RoleSelectionNotAllowedException();
         }
 
-        return completeLogin(snapshot, request.loginRole(), context.loginType());
+        return completeLogin(snapshot, request.loginRole(), context.loginType(), context.authenticatedAt());
     }
 
     private LoginResponse completeLogin(
             UserAuthorizationSnapshot snapshot,
             UserRole loginRole,
-            LoginType loginType
+            LoginType loginType,
+            Instant authenticatedAt
     ) {
         userLoginActivityService.recordLogin(snapshot.userId());
-        JwtTokenResult token = jwtTokenService.issue(snapshot, loginRole, loginType);
+        JwtTokenResult token = jwtTokenService.issue(snapshot, loginRole, loginType, authenticatedAt);
         return LoginResponse.authenticated(new AuthenticationResponse(
                 token.tokenValue(),
                 "Bearer",

@@ -5,6 +5,10 @@ public record LoginPrincipal(
         String username,
         String email,
         UserRole maximumRole,
-        long tokenVersion
+        long tokenVersion,
+        java.time.Instant authenticatedAt
 ) {
+    public LoginPrincipal {
+        java.util.Objects.requireNonNull(authenticatedAt, "Verified authentication time is required");
+    }
 }

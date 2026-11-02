@@ -1,6 +1,10 @@
 package org.example.music.user.service;
 
 import java.util.Locale;
+import java.time.Clock;
+import java.time.temporal.ChronoUnit;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.example.music.user.domain.UserAuthorizationSnapshot;
 import org.example.music.security.PasswordHasher;
 import org.example.music.user.domain.LoginPrincipal;
 import org.example.music.user.domain.UserEntity;
@@ -14,10 +18,13 @@ public class PasswordLoginService {
 
     private final UserRepository userRepository;
     private final PasswordHasher passwordHasher;
+    private final Clock clock;
 
-    public PasswordLoginService(UserRepository userRepository, PasswordHasher passwordHasher) {
+    public PasswordLoginService(UserRepository userRepository, PasswordHasher passwordHasher,
+            @Qualifier("authenticationClock") Clock clock) {
         this.userRepository = userRepository;
         this.passwordHasher = passwordHasher;
+        this.clock = clock;
     }
 
     public LoginPrincipal authenticate(
@@ -33,20 +40,21 @@ public class PasswordLoginService {
             default -> throw new InvalidCredentialsException();
         };
 
-        LoginPrincipal principal = principal(user);
+        UserAuthorizationSnapshot snapshot = snapshot(user);
         if (!passwordHasher.matches(password, user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
 
-        return principal;
+        return new LoginPrincipal(snapshot.userId(), snapshot.username(), snapshot.email(), snapshot.userRole(),
+                snapshot.tokenVersion(), clock.instant().truncatedTo(ChronoUnit.SECONDS));
     }
 
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
-    private LoginPrincipal principal(UserEntity user) {
-        return new LoginPrincipal(
+    private UserAuthorizationSnapshot snapshot(UserEntity user) {
+        return new UserAuthorizationSnapshot(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
