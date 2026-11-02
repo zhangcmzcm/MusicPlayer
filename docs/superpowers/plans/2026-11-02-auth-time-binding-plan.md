@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿用项目约定：Codex唯一实现，Claude独立只读审核，不派发实现子代理；缺失的执行子技能不声称已调用。用户已确认计划并授权实现；实现、文档与完整基准验证已完成，待Claude独立实现审核。
+> 执行方式沿用项目约定：Codex唯一实现，Claude独立只读审核，不派发实现子代理；缺失的执行子技能不声称已调用。实现已通过独立第1轮审核，零阻断、零非阻断；用户已授权推送，部署验收仍单独满足。
 
 **Goal:** 为现有POST /api/v1/auth/login绑定并传递真实验证时间，JWT携带auth_time，兼容缺失时间的旧Token，严格拒绝非法时间，并在内部认证上下文保留已校验时间与版本。
 
@@ -139,3 +139,4 @@
 - NOTE-001时钟零容差、观测/告警和烟测要求已落部署文档，实际环境验收尚未执行。NOTE-002已显式命名旧式入口并移除旧三参issue，生产rg仅发现定义，无调用；实际登录unit/integration均verify never。
 - 首轮实现材料docs/reviews/2026-11-02-auth-time-binding-review.md，设计建议处置另同步设计审核回执。不将设计accepted或本次自验当作实现accepted；未实现后续接口、未推送。
 - 本地没有executing-plans子技能文件，沿用Codex原生执行，没有派发子代理或声称调用缺失技能。
+- 独立实现审核已通过：全量999/0/0/0、88类、MinIO实跑；设计NOTE-001代码侧与NOTE-002由审核者核实关闭，无遗留争议。原“待审核”为送审时历史记录；当前代码任务完成，环境全实例升级、旧请求排空和时钟验收仍未宣称完成，后续接口未开始，用户已授权推送。
