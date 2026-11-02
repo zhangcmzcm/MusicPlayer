@@ -8,6 +8,7 @@ import org.example.music.user.domain.UserAuthorizationSnapshot;
 import org.example.music.user.domain.UserEntity;
 import org.example.music.user.domain.UserRole;
 import org.example.music.user.domain.UserProfileSnapshot;
+import org.example.music.user.domain.UserPasswordSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -15,6 +16,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
+
+    @Query("select new org.example.music.user.domain.UserPasswordSnapshot("
+            + "user.id, user.passwordHash, user.tokenVersion) from UserEntity user where user.id = :userId")
+    Optional<UserPasswordSnapshot> findPasswordSnapshot(@Param("userId") Integer userId);
+
+    @Modifying(clearAutomatically = true)
+    @Query(value = "UPDATE users SET password_token = :newHash, token_version = token_version + 1, "
+            + "updated_at = UTC_TIMESTAMP(6) WHERE id = :userId "
+            + "AND CAST(password_token AS BINARY) = CAST(:previousHash AS BINARY) "
+            + "AND token_version = :expectedVersion AND token_version < 9223372036854775807", nativeQuery = true)
+    int changePasswordIfSnapshotMatches(@Param("userId") Integer userId,
+            @Param("previousHash") String previousHash, @Param("expectedVersion") long expectedVersion,
+            @Param("newHash") String newHash);
 
     @Query("select new org.example.music.user.domain.UserProfileSnapshot("
             + "user.id, user.username, user.email, user.userRole, cast(user.createdAt as String)) "
