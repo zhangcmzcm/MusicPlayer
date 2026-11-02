@@ -20,7 +20,7 @@ public record UserRegisterRequest(
         @Size(min = 8, max = 72)
         @Pattern(regexp = "[\\x20-\\x7E]+", message = "must contain only printable ASCII characters (U+0020 to U+007E)")
         @Schema(description = "明文密码，仅通过 HTTPS 传输；8—72 个 ASCII 可打印字符，禁止全空格，首尾空格原样保留",
-                example = "correct-password", minLength = 8, maxLength = 72, pattern = "[\\x20-\\x7E]+")
+                example = "correct-password", minLength = 8, maxLength = 72, pattern = "^[\\x20-\\x7E]+(?![\\s\\S])")
         String password,
 
         @Email

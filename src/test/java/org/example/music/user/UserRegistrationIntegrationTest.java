@@ -1,6 +1,10 @@
 package org.example.music.user;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -23,6 +27,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.example.music.security.PasswordHasher;
 import org.example.music.user.domain.UserRole;
+import org.example.music.user.domain.UserEntity;
 import org.example.music.user.dto.UserRegisterRequest;
 import org.example.music.user.dto.UserRegisterResponse;
 import org.example.music.user.repository.UserRepository;
@@ -33,6 +38,12 @@ import org.example.music.verification.exception.EmailVerificationCodeException;
 import org.example.music.verification.repository.EmailVerificationCodeStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -47,10 +58,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers
 @EnabledIfDockerAvailable
 class UserRegistrationIntegrationTest {
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    @Autowired
+    private MockMvc mockMvc;
 
     private static final String KEY_PREFIX = "music:verification:code:REGISTER:";
 
@@ -92,6 +109,10 @@ class UserRegistrationIntegrationTest {
     @BeforeEach
     void resetDatabase() {
         userRepository.deleteAll();
+        Set<String> authKeys = redisTemplate.keys("music:auth:*");
+        if (authKeys != null && !authKeys.isEmpty()) {
+            redisTemplate.delete(authKeys);
+        }
         Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
         if (keys != null && !keys.isEmpty()) {
             redisTemplate.delete(keys);
@@ -244,6 +265,67 @@ class UserRegistrationIntegrationTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {8, 72})
+    void should_register_boundary_password_through_http(int length) throws Exception {
+        String password = "a".repeat(length);
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON.writeValueAsString(Map.of("username", "boundary_user", "password", password))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.userRole").value("USER"))
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andExpect(jsonPath("$.passwordToken").doesNotExist())
+                .andExpect(jsonPath("$.code").doesNotExist());
+        UserEntity user = userRepository.findByUsername("boundary_user").orElseThrow();
+        assertEquals(1, userRepository.count());
+        assertEquals(UserRole.USER, user.getUserRole());
+        assertNotEquals(password, user.getPasswordHash());
+        assertTrue(passwordHasher.matches(password, user.getPasswordHash()));
+    }
+
+    @Test
+    void should_preserve_password_spaces_in_stored_hash() throws Exception {
+        String password = " abcdefgh ";
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON.writeValueAsString(Map.of("username", "space_user", "password", password))))
+                .andExpect(status().isCreated());
+        String hash = userRepository.findByUsername("space_user").orElseThrow().getPasswordHash();
+        assertTrue(passwordHasher.matches(password, hash));
+        assertFalse(passwordHasher.matches(password.trim(), hash));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"too_long", "non_ascii"})
+    void should_reject_invalid_password_without_touching_account_or_code(String scenario) throws Exception {
+        String password = scenario.equals("too_long") ? "a".repeat(73) : "汉".repeat(24);
+        seedCode("alice@example.com", "123456");
+        String key = KEY_PREFIX + "alice@example.com";
+        Map<Object, Object> before = redisTemplate.opsForHash().entries(key);
+        long ttlBefore = redisTemplate.getExpire(key, TimeUnit.MILLISECONDS);
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON.writeValueAsString(Map.of("username", "invalid_user", "password", password,
+                                "email", "alice@example.com", "code", "123456"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.type").value("urn:problem:music:validation_failed"));
+        assertEquals(0, userRepository.count());
+        assertEquals(before, redisTemplate.opsForHash().entries(key));
+        long ttlAfter = redisTemplate.getExpire(key, TimeUnit.MILLISECONDS);
+        assertTrue(ttlAfter > 0 && ttlAfter <= ttlBefore);
+    }
+
+    @Test
+    void should_keep_existing_non_ascii_password_login_compatible() throws Exception {
+        String password = "historical-密码-123";
+        userRepository.saveAndFlush(UserEntity.create("legacy_user", null, passwordHasher.hash(password)));
+        mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON.writeValueAsString(Map.of("loginType", "USERNAME_PASSWORD",
+                                "account", "legacy_user", "password", password))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("AUTHENTICATED"))
+                .andExpect(jsonPath("$.authentication.accessToken").isString());
     }
 
     private String seedCode(String email, String code) {

@@ -1,5 +1,7 @@
 package org.example.music.user.controller;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -18,8 +20,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import tools.jackson.databind.json.JsonMapper;
 import org.mockito.ArgumentCaptor;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import org.example.music.config.SecurityConfig;
 import org.example.music.user.service.UserAuthorizationStateService;
 import org.example.music.user.domain.UserRole;
@@ -45,7 +45,7 @@ class AuthControllerTest {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     static Stream<String> invalidPasswords() {
-        return Stream.of(null, "", " ".repeat(8), "a".repeat(7), "a".repeat(73), "a".repeat(128),
+        return Stream.of(null, "", " ".repeat(8), " ".repeat(72), "a".repeat(7), "a".repeat(73), "a".repeat(128),
                 "密码测试abcdefgh", "abcdefgh😀", "abcdefgh👩‍💻", "abcdefghé", "abcdefgh！",
                 "abcdefgh\u00a0", "abcdefgh\u007f", "abcdefgh\u0000", "abcdefgh\t",
                 "abcdefgh\r", "abcdefgh\n", "汉".repeat(24));
@@ -65,6 +65,8 @@ class AuthControllerTest {
         Map<String, Object> request = new HashMap<>();
         request.put("username", "alice_2026");
         request.put("password", password);
+        request.put("email", "alice@example.com");
+        request.put("code", "123456");
         mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(JSON.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
