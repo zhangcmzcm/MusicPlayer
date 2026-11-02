@@ -74,7 +74,7 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(
             summary = "用户登录",
-            description = "支持用户名密码、邮箱密码、邮箱验证码和管理员身份选择；验证结果与票据绑定认证版本，复核不匹配时拒绝登录，禁止升级旧验证结果"
+            description = "支持用户名密码、邮箱密码、邮箱验证码和管理员身份选择；验证结果与票据绑定认证版本及原始验证时间，JWT携带整数auth_time。角色选择和签发不刷新验证时间，复核不匹配时拒绝登录，禁止升级旧验证结果；不改变请求或成功DTO"
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "登录成功或需要管理员身份选择", content = @Content(
@@ -83,7 +83,7 @@ public class AuthController {
             @ApiResponse(responseCode = "400", description = "请求校验失败", content = @Content(
                     mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class))),
-            @ApiResponse(responseCode = "401", description = "初始凭据或版本/角色复核失败为 INVALID_CREDENTIALS；票据格式、版本或兑换复核失败为 LOGIN_TICKET_INVALID", content = @Content(
+            @ApiResponse(responseCode = "401", description = "初始凭据或版本/角色复核失败为 INVALID_CREDENTIALS；票据格式、版本、认证时间或兑换复核失败为 LOGIN_TICKET_INVALID", content = @Content(
                     mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "403", description = "登录身份选择无权限", content = @Content(

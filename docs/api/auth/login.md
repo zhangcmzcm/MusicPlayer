@@ -119,13 +119,21 @@
 - 算法：HS256。
 - Access Token 有效期：24 小时。
 - 请求使用 `Authorization: Bearer <accessToken>`。
-- Claims：`sub`、`role`、`loginType`、`tokenVersion`、`jti`、`iat`、`exp`。
+- Claims：`sub`、`role`、`loginType`、`tokenVersion`、`jti`、`iat`、`exp`、`auth_time`。
 - `role` 是本次实际登录身份，必须不超过数据库当前最高角色。
 - `tokenVersion` 来自已匹配凭据验证结果或 Ticket 绑定版本的 MySQL 角色/版本快照；签发时不再另查新版本替换它。
 - 每个认证请求都会单条查询数据库最高角色和 `tokenVersion`；版本不匹配或登录角色超过最高角色时返回 `401 TOKEN_REVOKED`。
 - `JwtAuthenticationConverterProvider` 不直接信任 `role` claim；只有数据库校验通过后才生成对应权限。
 - `loginType` 为原始登录方式，不使用 `ROLE_SELECTION`。
 - 不返回密码摘要、验证码或登录票据摘要。
+
+### 认证时间
+
+实际登录签发的JWT携带JSON整数Unix秒的`auth_time`，表示完成凭据验证的UTC时间。密码路径在matches成功后立即记时，邮箱验证码路径在validate成功后记时、consume成功才继续；后续查询、角色选择、Ticket兑换和签发都不重置该时间。`iat`仍是当前Token签发时间，二者不能互相代替。按秒向下取整，不改变24小时访问Token有效期、请求或成功响应DTO。
+
+缺少`auth_time`的旧Token按原到期/角色/版本规则继续普通访问，但没有近期验证证据。声明存在却为null、字符串、小数、负数、溢出、未来或晚于真实`iat`时，受保护链返回401 INVALID_TOKEN；不能当作字段缺失降级。声明存在时`iat`必须真实存在，不能使用转换器推算值。不存在额外未来时间宽限，部署需同步实例时钟。
+
+校验后的认证时间和版本只保存在内部Authentication.details，不加入用户资料响应；前端参数/头部不能覆盖。当前没有300秒业务门禁、REAUTHENTICATION_REQUIRED映射或再次验证/refresh接口。未来refresh必须继承原验证时间和有效版本，不以刷新时间重置资格；未来敏感接口会单独检查300秒窗口。详见[认证时间部署边界](../../deployment/auth-time-binding.md)。
 
 ## 验证码登录
 
@@ -141,13 +149,15 @@ music:verification:code:LOGIN:<normalized-email>
 
 ## 管理员 Ticket
 
-Ticket 是一次性角色选择凭据，服务端以一次 Redis Lua 操作保存 userId、maximumRole、loginType、tokenVersion 四字段及 300 秒 TTL。版本取自已通过复核的原验证版本，不接受客户端提供版本，也不升级旧验证结果。
+Ticket 是一次性角色选择凭据，服务端以一次 Redis Lua 操作保存 userId、maximumRole、loginType、tokenVersion、authTime 五字段及 300 秒 TTL。版本及认证时间取自原验证结果，不接受客户端提供或回填当前时间，也不升级旧验证结果。
 
 兑换时原子检查 PTTL、读取并删除 Ticket，再复核当前账户版本和角色。版本 0 合法，但缺失版本不等于 0；旧格式、无有效 TTL、未知/缺失字段、非规范或溢出版本、已消费、过期及版本/角色变化均返回 `401 LOGIN_TICKET_INVALID`。
 
+authTime必须为规范非负ASCII十进制Unix秒文本且不在未来；缺失、非法类型/数值、越界或未来同样返回LOGIN_TICKET_INVALID。0是真实旧时间，不是默认值。旧四字段票据拒绝并重新登录。Ticket剩余TTL不代表验证时间；Java验证时间已经超过300秒但Ticket真实TTL仍有效时，允许普通登录，JWT保留旧auth_time，不因此获得近期资格。
+
 消费后的 Ticket 不因权限、状态查询、签发或网络失败而恢复；需要重新发起登录。Redis 超时可能已经消费 Ticket，返回 503 不保证凭据仍可使用。签发前复核后若又发生撤销，可能返回旧版本 Ticket，但其后续兑换必定无法升级为新版本有效 Token。
 
-现有随机 Ticket 格式、角色选择请求与成功响应不变。TTL 以 Redis 为准，不因兑换或失败延期。上线必须让全部旧登录实例退出服务；混合版本和回滚限制见[认证版本绑定部署说明](../../deployment/auth-version-binding.md)。
+现有随机 Ticket 格式、角色选择请求与成功响应不变。TTL 以 Redis 为准，不因兑换或失败延期。上线必须让全部旧登录实例退出服务；版本绑定条件见[原部署说明](../../deployment/auth-version-binding.md)，五字段发布兼容与时钟验收以[认证时间部署说明](../../deployment/auth-time-binding.md)为准。
 
 发送登录验证码：
 
