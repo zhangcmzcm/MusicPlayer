@@ -2,7 +2,7 @@
 
 日期：2026-11-03。
 
-状态：设计bad68f3已获独立第1轮accepted，零阻断、两条非阻断；[处置记录](../../reviews/2026-11-03-reauthentication-email-request-design-review.md)与[实施计划](../plans/2026-11-03-reauthentication-email-request-plan.md)已编写，书面计划待用户确认。本次不修改业务代码。
+状态：设计bad68f3已获独立第1轮accepted，零阻断、两条非阻断；用户已确认[实施计划](../plans/2026-11-03-reauthentication-email-request-plan.md)并授权实施。接口代码、测试及文档已编写，带MinIO的cleanTest check为1105通过/0失败/0错误/0跳过、96类；[首次实现送审材料](../../reviews/2026-11-03-reauthentication-email-request-review.md)已整理，尚未取得独立实现审核accepted。[设计意见处置](../../reviews/2026-11-03-reauthentication-email-request-design-review.md)。
 
 基线：main @ 22af54e，工作区干净、与origin/main同步。认证版本与认证时间绑定均已独立审核通过；最近独立全量999通过、0失败、0错误、0跳过，88类。
 
