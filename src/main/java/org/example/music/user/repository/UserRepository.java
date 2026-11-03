@@ -9,6 +9,7 @@ import org.example.music.user.domain.UserEntity;
 import org.example.music.user.domain.UserRole;
 import org.example.music.user.domain.UserProfileSnapshot;
 import org.example.music.user.domain.UserPasswordSnapshot;
+import org.example.music.user.domain.UserReauthenticationSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -16,6 +17,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
+
+    @Query("select new org.example.music.user.domain.UserReauthenticationSnapshot("
+            + "user.id, user.email, user.passwordHash, user.userRole, user.tokenVersion) "
+            + "from UserEntity user where user.id = :userId")
+    Optional<UserReauthenticationSnapshot> findReauthenticationSnapshot(@Param("userId") Integer userId);
 
     @Query("select new org.example.music.user.domain.UserPasswordSnapshot("
             + "user.id, user.passwordHash, user.tokenVersion) from UserEntity user where user.id = :userId")
