@@ -12,6 +12,7 @@ import java.util.Set;
 import org.example.music.user.domain.ReauthenticationMethod;
 import org.example.music.user.dto.ReauthenticationRequest;
 import org.example.music.user.exception.ReauthenticationValidationException;
+import org.example.music.user.exception.ReauthenticationDiagnostics;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JsonToken;
@@ -64,6 +65,10 @@ public class ReauthenticationRequestReader {
             }
         } catch (IOException | IllegalArgumentException | tools.jackson.core.JacksonException failure) {
             throw new ReauthenticationValidationException();
+        } catch (ReauthenticationValidationException known) {
+            throw known;
+        } catch (RuntimeException failure) {
+            throw new IllegalStateException("Reauthentication request binding failed unexpectedly", ReauthenticationDiagnostics.sanitized(failure));
         }
     }
 }

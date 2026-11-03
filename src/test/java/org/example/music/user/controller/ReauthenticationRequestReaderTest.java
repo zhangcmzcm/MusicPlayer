@@ -94,4 +94,11 @@ class ReauthenticationRequestReaderTest {
         assertFalse(request.toString().contains(ID)); assertFalse(request.toString().contains("012345"));
         assertFalse(new ReauthenticationResponse("hidden-token", "Bearer", Instant.EPOCH, Instant.EPOCH).toString().contains("hidden-token"));
     }
+
+    @Test void should_sanitize_unexpected_validation_provider_failure() {
+        var validator=org.mockito.Mockito.mock(jakarta.validation.Validator.class);
+        org.mockito.Mockito.when(validator.validate(org.mockito.ArgumentMatchers.any())).thenThrow(new jakarta.validation.ValidationException("secret-password",new RuntimeException("secret-code")));
+        var failure=assertThrows(IllegalStateException.class,()->new ReauthenticationRequestReader(validator).read(request("{\"method\":\"PASSWORD\",\"password\":\"secret-password\"}")));
+        assertFalse(failure.getMessage().contains("secret"));assertFalse(failure.getCause().getMessage().contains("secret"));assertNull(failure.getCause().getCause());
+    }
 }

@@ -42,6 +42,11 @@ import org.example.music.user.exception.ReauthenticationEmailRateLimitedExceptio
 import org.example.music.user.exception.ReauthenticationEmailRequestConflictException;
 import org.example.music.user.exception.ReauthenticationEmailRequestUnavailableException;
 import org.example.music.user.exception.ReauthenticationEmailSendFailedException;
+import org.example.music.user.exception.ReauthenticationDiagnostics;
+import org.example.music.user.exception.ReauthenticationFailedException;
+import org.example.music.user.exception.ReauthenticationRateLimitedException;
+import org.example.music.user.exception.ReauthenticationUnavailableException;
+import org.example.music.user.exception.ReauthenticationValidationException;
 import org.example.music.user.exception.OldPasswordIncorrectException;
 import org.example.music.user.exception.NewPasswordSameAsOldException;
 import org.example.music.user.exception.PasswordChangeConflictException;
@@ -87,6 +92,35 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(ReauthenticationValidationException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationValidation(
+            ReauthenticationValidationException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "再次验证请求格式不正确", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReauthenticationFailedException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationFailed(
+            ReauthenticationFailedException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.UNAUTHORIZED, "REAUTHENTICATION_FAILED", "身份验证失败", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReauthenticationRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationRateLimited(
+            ReauthenticationRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
+                .body(problem(request, HttpStatus.TOO_MANY_REQUESTS, "REAUTHENTICATION_RATE_LIMITED", "再次验证请求过于频繁", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReauthenticationUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationUnavailable(
+            ReauthenticationUnavailableException exception, HttpServletRequest request) {
+        Throwable failure = exception.getCause() == null ? exception : exception.getCause();
+        LOGGER.warn("Reauthentication unavailable, traceId={}, exceptionType={}", MDC.get("traceId"),
+                failure.getClass().getSimpleName(), ReauthenticationDiagnostics.sanitized(failure));
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "REAUTHENTICATION_UNAVAILABLE", "再次验证暂不可用", exception.getMessage()));
+    }
 
     @ExceptionHandler(ReauthenticationEmailInvalidRequestException.class)
     public ResponseEntity<ProblemDetail> handleReauthenticationEmailInvalidRequest(
