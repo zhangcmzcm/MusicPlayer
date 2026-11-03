@@ -35,6 +35,13 @@ import org.example.music.email.exception.SendCodeRateLimitedException;
 import org.example.music.user.exception.AdminPrivilegeRevokedException;
 import org.example.music.user.exception.AuthStateStoreUnavailableException;
 import org.example.music.user.exception.CurrentUserRevokedException;
+import org.example.music.user.exception.CurrentEmailNotBoundException;
+import org.example.music.user.exception.ReauthenticationEmailDiagnostics;
+import org.example.music.user.exception.ReauthenticationEmailInvalidRequestException;
+import org.example.music.user.exception.ReauthenticationEmailRateLimitedException;
+import org.example.music.user.exception.ReauthenticationEmailRequestConflictException;
+import org.example.music.user.exception.ReauthenticationEmailRequestUnavailableException;
+import org.example.music.user.exception.ReauthenticationEmailSendFailedException;
 import org.example.music.user.exception.OldPasswordIncorrectException;
 import org.example.music.user.exception.NewPasswordSameAsOldException;
 import org.example.music.user.exception.PasswordChangeConflictException;
@@ -80,6 +87,48 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(ReauthenticationEmailInvalidRequestException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationEmailInvalidRequest(
+            ReauthenticationEmailInvalidRequestException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "请求格式不正确", exception.getMessage()));
+    }
+
+    @ExceptionHandler(CurrentEmailNotBoundException.class)
+    public ResponseEntity<ProblemDetail> handleCurrentEmailNotBound(
+            CurrentEmailNotBoundException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.CONFLICT, "CURRENT_EMAIL_NOT_BOUND", "当前邮箱未绑定", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReauthenticationEmailRequestConflictException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationEmailRequestConflict(
+            ReauthenticationEmailRequestConflictException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.CONFLICT, "REAUTH_EMAIL_REQUEST_CONFLICT", "身份验证请求冲突", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReauthenticationEmailRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationEmailRateLimited(
+            ReauthenticationEmailRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
+                .body(problem(request, HttpStatus.TOO_MANY_REQUESTS, "REAUTH_EMAIL_RATE_LIMITED", "身份验证邮件请求过于频繁", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReauthenticationEmailSendFailedException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationEmailSendFailed(
+            ReauthenticationEmailSendFailedException exception, HttpServletRequest request) {
+        LOGGER.warn("Reauthentication email delivery failed, traceId={}, exceptionType={}", MDC.get("traceId"),
+                exception.getClass().getSimpleName(), ReauthenticationEmailDiagnostics.sanitized(exception));
+        return response(problem(request, HttpStatus.BAD_GATEWAY, "EMAIL_SEND_FAILED", "身份验证邮件发送失败", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReauthenticationEmailRequestUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationEmailRequestUnavailable(
+            ReauthenticationEmailRequestUnavailableException exception, HttpServletRequest request) {
+        LOGGER.warn("Reauthentication email request unavailable, traceId={}, exceptionType={}", MDC.get("traceId"),
+                exception.getClass().getSimpleName(), ReauthenticationEmailDiagnostics.sanitized(exception));
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "REAUTH_EMAIL_REQUEST_UNAVAILABLE", "身份验证邮件请求不可用", exception.getMessage()));
+    }
 
     @ExceptionHandler(OldPasswordIncorrectException.class)
     public ResponseEntity<ProblemDetail> handleOldPasswordIncorrect(
