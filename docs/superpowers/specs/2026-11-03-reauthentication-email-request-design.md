@@ -2,7 +2,7 @@
 
 日期：2026-11-03。
 
-状态：对话设计已确认，书面设计待用户审阅；本次只编写设计，不修改业务代码。
+状态：设计bad68f3已获独立第1轮accepted，零阻断、两条非阻断；[处置记录](../../reviews/2026-11-03-reauthentication-email-request-design-review.md)与[实施计划](../plans/2026-11-03-reauthentication-email-request-plan.md)已编写，书面计划待用户确认。本次不修改业务代码。
 
 基线：main @ 22af54e，工作区干净、与origin/main同步。认证版本与认证时间绑定均已独立审核通过；最近独立全量999通过、0失败、0错误、0跳过，88类。
 
@@ -80,7 +80,7 @@ expiresAt为UTC ISO-8601 Instant。没有新增查询该资源的GET接口，不
 - 邮件失败、发送容量不足、预留后哈希/数据库/Redis故障、激活冲突均不退已消费额度，不自动重发；成功、重新登录、换设备/Token不重置。
 - 错误类型、非规范计数、缺失或异常TTL、未知脚本回包等503并停止，不能视作允许或删除状态后放行。Lua的原子可见性不等于脚本运行错误自动回滚已执行命令；结果未知可能已计数或预留，不自动重试。
 
-Redis负责限流、租约和验证码期限的时间权威：预留Lua读取Redis时间，确定不可延长的expiresAt=准备时间＋300秒及最长60秒pending租约；UTC日界也按同一时间源计算。active激活使用原expiresAt和剩余期限，不从邮件确认时重新计5分钟。Java只转换UTC时间用于响应/邮件，不靠推进Java Clock模拟Redis过期。沿用现有单Redis服务前提，不在本任务做Redis Cluster改造。
+Redis负责限流、租约和验证码期限的时间权威：预留/准入Lua读取Redis时间，以该“预留/准入时间”确定不可延长的expiresAt=预留/准入时间＋300秒及最长60秒pending租约；不是PREPARED或哈希完成时刻。UTC日界也按同一时间源计算。active激活使用原expiresAt和剩余期限，不从邮件确认时重新计5分钟。Java只转换UTC时间用于响应/邮件，不靠推进Java Clock模拟Redis过期。沿用现有单Redis服务前提，不在本任务做Redis Cluster改造。
 
 ## 7. 准备、发送与激活流程
 
