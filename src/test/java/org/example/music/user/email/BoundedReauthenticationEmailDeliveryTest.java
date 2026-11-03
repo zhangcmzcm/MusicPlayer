@@ -51,4 +51,9 @@ class BoundedReauthenticationEmailDeliveryTest {
     @Test void should_stop_admission_after_shutdown() {
         var delivery=new BoundedReauthenticationEmailDelivery(m->{});delivery.close();assertThrows(ReauthenticationEmailRequestUnavailableException.class,()->delivery.send(message));
     }
+    @Test void should_preserve_known_transport_failure() {
+        var failure=new ReauthenticationEmailSendFailedException(new IllegalStateException("private details"));
+        var delivery=new BoundedReauthenticationEmailDelivery(m->{throw failure;});
+        try{assertSame(failure,assertThrows(ReauthenticationEmailSendFailedException.class,()->delivery.send(message)));}finally{delivery.close();}
+    }
 }

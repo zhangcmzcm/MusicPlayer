@@ -121,6 +121,39 @@ class ReauthenticationEmailRequestStoreIntegrationTest {
         store.prepare(binding,next,HASH); store.activate(binding,next);
         assertThrows(ReauthenticationEmailRequestConflictException.class,()->store.activate(binding,old));
     }
+    @ParameterizedTest @ValueSource(strings={"extra","ttl","attempts","version","hash"})
+    void should_preserve_corrupt_active_and_reject_new_admission(String damage) {
+        var r=store.reserve(binding,digest(),digest());store.prepare(binding,r,HASH);store.activate(binding,r);clearCooldown();String k=key("active",42);
+        switch(damage){
+            case "extra"->redis.opsForHash().put(k,"extra","bad");
+            case "ttl"->redis.persist(k);
+            case "attempts"->redis.opsForHash().put(k,"attempts","01");
+            case "version"->redis.opsForHash().put(k,"tokenVersion","9223372036854775808");
+            case "hash"->redis.opsForHash().put(k,"codeHash","bad");
+        }
+        var damaged=redis.opsForHash().entries(k);
+        assertThrows(ReauthenticationEmailRequestUnavailableException.class,()->store.reserve(binding,digest(),digest()));assertEquals(damaged,redis.opsForHash().entries(k));
+    }
+    void clearCooldown(){redis.expire(key("cooldown",42),Duration.ZERO);}
+    @ParameterizedTest @ValueSource(strings={"cooldown","daily","ip"})
+    void should_reject_quota_without_expiry_instead_of_repairing(String kind) {
+        String ip=digest();store.reserve(binding,digest(),ip);String k=kind.equals("ip")?PREFIX+"ip:"+ip:key(kind,42);redis.persist(k);
+        var original=redis.opsForHash().entries(k);
+        assertThrows(ReauthenticationEmailRequestUnavailableException.class,()->store.reserve(binding,digest(),ip));assertEquals(original,redis.opsForHash().entries(k));assertEquals(-1,expiry(k));
+    }
+    @Test void should_return_longest_wait_when_daily_and_cooldown_both_block() {
+        var r=store.reserve(binding,digest(),digest());String k=key("daily",42);redis.opsForHash().put(k,"count","10");
+        var failure=assertThrows(ReauthenticationEmailRateLimitedException.class,()->store.reserve(binding,digest(),digest()));
+        long expected=(Math.max(expiry(k),r.leaseUntil().toEpochMilli())-r.reservedAt().toEpochMilli()+999)/1000;
+        assertTrue(failure.getRetryAfterSeconds()<=expected && failure.getRetryAfterSeconds()>=expected-1);assertEquals("10",redis.opsForHash().get(k,"count"));
+    }
+    @Test void should_require_prepared_state_and_matching_binding_to_activate() {
+        var r=store.reserve(binding,digest(),digest());assertThrows(ReauthenticationEmailRequestConflictException.class,()->store.activate(binding,r));
+        store.prepare(binding,r,HASH);
+        var wrong=new ReauthenticationEmailBinding(42,"other@example.com",binding.tokenVersion());
+        assertThrows(ReauthenticationEmailRequestConflictException.class,()->store.activate(wrong,r));store.cancel(wrong,r.challengeDigest());assertTrue(Boolean.TRUE.equals(redis.hasKey(key("pending",42))));
+        store.activate(binding,r);assertEquals("ACTIVE",redis.opsForHash().get(key("active",42),"state"));
+    }
     @Test void should_admit_exactly_one_concurrent_request_for_user() throws Exception {
         ExecutorService pool=Executors.newFixedThreadPool(8); CountDownLatch start=new CountDownLatch(1);
         try {

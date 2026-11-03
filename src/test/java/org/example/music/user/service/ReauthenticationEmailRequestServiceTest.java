@@ -90,4 +90,8 @@ class ReauthenticationEmailRequestServiceTest {
         when(hasher.hash(anyString())).thenThrow(original);
         var failure=assertThrows(IllegalStateException.class,()->service.request(actor,session,"ip"));assertNull(failure.getCause().getCause());assertEquals(0,failure.getCause().getSuppressed().length);assertFalse(failure.getCause().getMessage().contains("secret"));verify(store).cancel(any(),any());
     }
+    @ParameterizedTest @ValueSource(strings={"12345","1234567","12a456"})
+    void should_refuse_invalid_generator_output_before_hashing(String generated) {
+        when(codes.generate()).thenReturn(generated);assertThrows(IllegalStateException.class,()->service.request(actor,session,"ip"));verifyNoInteractions(hasher,delivery);verify(store).cancel(any(),any());
+    }
 }

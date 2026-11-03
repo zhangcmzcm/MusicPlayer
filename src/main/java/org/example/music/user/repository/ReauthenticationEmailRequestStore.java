@@ -12,6 +12,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -69,13 +70,15 @@ public class ReauthenticationEmailRequestStore {
 
     private String key(String kind, ReauthenticationEmailBinding binding) { return PREFIX + kind + ":" + binding.userId(); }
 
-    private String[] args(ReauthenticationEmailBinding binding, String digest) {
-        return new String[]{binding.userId().toString(), binding.email(), Long.toString(binding.tokenVersion()), digest};
+    private Object[] args(ReauthenticationEmailBinding binding, String digest) {
+        return new Object[]{binding.userId().toString(), binding.email(), Long.toString(binding.tokenVersion()), digest};
     }
 
     private List<?> execute(RedisScript<List> script, List<String> keys, Object... args) {
         try { return redis.execute(script, keys, args); }
-        catch (DataAccessException failure) { throw new ReauthenticationEmailRequestUnavailableException(failure); }
+        catch (DataAccessException | SerializationException | ClassCastException failure) {
+            throw new ReauthenticationEmailRequestUnavailableException(failure);
+        }
     }
 
     private void result(List<?> result, boolean conflictAllowed) {
