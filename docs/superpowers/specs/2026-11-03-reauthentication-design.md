@@ -2,7 +2,7 @@
 
 日期：2026-11-03。
 
-状态：用户已逐段确认业务决策、请求/响应、失败契约、验证与签发流程、组件及测试边界，并授权整理本书面设计；本文待用户审阅。尚未编写实施计划或运行时代码，设计确认不代表实现审核通过。
+状态：设计2a69c48已获独立第1/3轮accepted，零阻断、一条非阻断；NOTE-001经复核采纳删除未使用username投影字段，签发改用最小身份数据，属审核允许的设计微调。[审核处置](../../reviews/2026-11-03-reauthentication-design-review.md)与[实施计划](../plans/2026-11-03-reauthentication-plan.md)已整理，计划待用户确认；尚未编写运行时代码，设计accepted不代表实现审核通过。
 
 基线：main @ f20c9ec，与origin/main同步，开始本设计时工作区干净。此前发送接口POST /api/v1/users/me/reauthentication-email-requests已获独立第1/3轮accepted，零阻断、零非阻断；独立带MinIO的cleanTest check为1105通过/0失败/0错误/0跳过、96类，其中发送接口8类106项。这些是既有基线证明，不是本接口测试结果。本机.env及Redis端口排障不纳入Git设计变更或生产部署验收。
 
@@ -100,7 +100,7 @@ accessToken为新签名JWT；tokenType固定Bearer；expiresAt为新访问Token�
 
 ## 6. 本人数据库快照与密码验证
 
-新增一次主键投影读取的内部快照，包含userId、username、email、passwordHash（映射password_token）、userRole、tokenVersion，不把Entity或密码摘要传到Controller。快照toString隐藏摘要和邮箱。
+新增一次主键投影读取的内部快照，精确包含userId、email、passwordHash（映射password_token）、userRole、tokenVersion，不查询未用于本流程的username，也不为保留字段新增用户名日志。Entity或密码摘要不传到Controller，快照toString隐藏摘要和邮箱。既有UserAuthorizationSnapshot不修改；本接口签发时只传递用户ID、账户角色、验证版本的最小身份数据，不构造含空占位字段的既有授权快照。
 
 每次读取是独立只读短事务，事务的启动/查询/完成故障均译为503；不将BCrypt、Redis或JWT签发包进数据库事务，不加长期行锁、不写表。
 
@@ -152,7 +152,7 @@ BCrypt匹配后立即采样authenticationClock并截断秒；使用消费Lua重�
 
 ## 8. JWT签发、认证时间和refresh兼容
 
-在JwtTokenService新增专用再次验证签发入口，参数为已复核的UserAuthorizationSnapshot、原loginRole、受控再次验证方式和显式verifiedAt；不读取数据库、不接收前端提供的角色/版本/时间，不提供自动now回填或缺auth_time降级入口。
+在JwtTokenService新增专用再次验证签发入口，参数为已复核的最小签发身份（userId、accountRole、tokenVersion）、原loginRole、受控再次验证方式和显式verifiedAt；不读取数据库、不接收前端提供的角色/版本/时间，不提供自动now回填或缺auth_time降级入口。该身份不含username、email或摘要；既有登录入口和UserAuthorizationSnapshot契约保持原样。
 
 新Token：
 
