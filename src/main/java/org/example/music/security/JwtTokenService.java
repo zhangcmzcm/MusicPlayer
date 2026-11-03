@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import org.example.music.user.domain.UserAuthorizationSnapshot;
 import org.example.music.user.domain.UserRole;
+import org.example.music.user.domain.ReauthenticationMethod;
 import org.example.music.user.dto.LoginType;
 import org.example.music.user.exception.RoleSelectionNotAllowedException;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,17 +57,39 @@ public class JwtTokenService {
         if (verified.isAfter(issuedAt)) {
             throw new IllegalArgumentException("Invalid verified authentication time");
         }
-        return encode(snapshot, loginRole, loginType, issuedAt, verified);
+        return encode(subject(snapshot), loginRole, loginType.name(), issuedAt, verified);
+    }
+
+    public JwtTokenResult issueReauthenticated(JwtTokenSubject subject, UserRole loginRole,
+            ReauthenticationMethod method, Instant verifiedAt) {
+        if (subject == null || subject.userId() == null || subject.userId() <= 0 || subject.accountRole() == null
+                || subject.tokenVersion() < 0 || loginRole == null || method == null) {
+            throw new IllegalArgumentException("Invalid reauthentication subject");
+        }
+        Instant now = clock.instant();
+        if (verifiedAt == null || verifiedAt.isBefore(Instant.EPOCH) || verifiedAt.isAfter(now)) {
+            throw new IllegalArgumentException("Invalid verified authentication time");
+        }
+        Instant issuedAt = now.truncatedTo(ChronoUnit.SECONDS);
+        String source = switch (method) {
+            case PASSWORD -> "REAUTHENTICATION_PASSWORD";
+            case EMAIL_CODE -> "REAUTHENTICATION_EMAIL_CODE";
+        };
+        return encode(subject, loginRole, source, issuedAt, verifiedAt.truncatedTo(ChronoUnit.SECONDS));
     }
 
     public JwtTokenResult issueLegacyWithoutAuthTime(
             UserAuthorizationSnapshot snapshot, UserRole loginRole, LoginType loginType) {
-        return encode(snapshot, loginRole, loginType, clock.instant().truncatedTo(ChronoUnit.SECONDS), null);
+        return encode(subject(snapshot), loginRole, loginType.name(), clock.instant().truncatedTo(ChronoUnit.SECONDS), null);
     }
 
-    private JwtTokenResult encode(UserAuthorizationSnapshot snapshot, UserRole loginRole,
-            LoginType loginType, Instant issuedAt, Instant authenticatedAt) {
-        if (!loginRole.isAllowedBy(snapshot.userRole())) {
+    private static JwtTokenSubject subject(UserAuthorizationSnapshot snapshot) {
+        return new JwtTokenSubject(snapshot.userId(), snapshot.userRole(), snapshot.tokenVersion());
+    }
+
+    private JwtTokenResult encode(JwtTokenSubject subject, UserRole loginRole,
+            String loginType, Instant issuedAt, Instant authenticatedAt) {
+        if (!loginRole.isAllowedBy(subject.accountRole())) {
             throw new RoleSelectionNotAllowedException();
         }
 
@@ -74,13 +97,13 @@ public class JwtTokenService {
         var builder = JwtClaimsSet.builder()
                 .issuer(issuer)
                 .audience(List.of(audience))
-                .subject(String.valueOf(snapshot.userId()))
+                .subject(String.valueOf(subject.userId()))
                 .id(UUID.randomUUID().toString())
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
                 .claim("role", loginRole.name())
-                .claim("tokenVersion", snapshot.tokenVersion())
-                .claim("loginType", loginType.name());
+                .claim("tokenVersion", subject.tokenVersion())
+                .claim("loginType", loginType);
         if (authenticatedAt != null) {
             builder.claim("auth_time", authenticatedAt.getEpochSecond());
         }

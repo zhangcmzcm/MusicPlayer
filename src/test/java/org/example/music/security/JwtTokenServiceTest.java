@@ -10,6 +10,7 @@ import java.time.Instant;
 import javax.crypto.spec.SecretKeySpec;
 import org.example.music.user.domain.UserAuthorizationSnapshot;
 import org.example.music.user.domain.UserRole;
+import org.example.music.user.domain.ReauthenticationMethod;
 import org.example.music.user.dto.LoginType;
 import org.example.music.user.exception.RoleSelectionNotAllowedException;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,48 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 
 class JwtTokenServiceTest {
+
+    private tools.jackson.databind.JsonNode payload(JwtTokenResult result) {
+        return tools.jackson.databind.json.JsonMapper.builder().build().readTree(new String(
+                java.util.Base64.getUrlDecoder().decode(result.tokenValue().split("\\.")[1]), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void should_issue_reauthentication_source_with_original_role_version_and_verified_time() {
+        Instant now = Instant.parse("2026-11-03T12:00:00.500Z");
+        Instant verified = now.minusSeconds(600);
+        var signer = service(java.time.Clock.fixed(now, java.time.ZoneOffset.UTC));
+        for (var method : ReauthenticationMethod.values()) {
+            var result = signer.issueReauthenticated(new JwtTokenSubject(42, UserRole.ADMIN, Long.MAX_VALUE), UserRole.USER, method, verified);
+            var claims = payload(result);
+            assertEquals("REAUTHENTICATION_" + method.name(), claims.path("loginType").asString());
+            assertEquals("USER", claims.path("role").asString());
+            assertEquals(Long.MAX_VALUE, claims.path("tokenVersion").asLong());
+            assertEquals(verified.getEpochSecond(), claims.path("auth_time").asLong());
+            assertEquals(now.getEpochSecond(), claims.path("iat").asLong());
+            assertEquals(86400, claims.path("exp").asLong() - claims.path("iat").asLong());
+            assertEquals("42", claims.path("sub").asString());
+        }
+        assertEquals(0, payload(signer.issueReauthenticated(new JwtTokenSubject(42, UserRole.USER, 0), UserRole.USER,
+                ReauthenticationMethod.PASSWORD, Instant.EPOCH)).path("auth_time").asLong());
+    }
+
+    @Test
+    void should_reject_invalid_reauthentication_metadata_and_time_without_legacy_fallback() {
+        Instant now = Instant.parse("2026-11-03T12:00:00.500Z");
+        var signer = service(java.time.Clock.fixed(now, java.time.ZoneOffset.UTC));
+        var subject = new JwtTokenSubject(42, UserRole.USER, 0);
+        for (Instant time : new Instant[]{null, Instant.EPOCH.minusNanos(1), now.plusNanos(1), now.plusSeconds(1)}) {
+            assertThrows(IllegalArgumentException.class, () -> signer.issueReauthenticated(subject, UserRole.USER, ReauthenticationMethod.PASSWORD, time));
+        }
+        for (var invalid : new JwtTokenSubject[]{null, new JwtTokenSubject(null, UserRole.USER, 0), new JwtTokenSubject(0, UserRole.USER, 0),
+                new JwtTokenSubject(42, null, 0), new JwtTokenSubject(42, UserRole.USER, -1)}) {
+            assertThrows(IllegalArgumentException.class, () -> signer.issueReauthenticated(invalid, UserRole.USER, ReauthenticationMethod.PASSWORD, now));
+        }
+        assertThrows(IllegalArgumentException.class, () -> signer.issueReauthenticated(subject, null, ReauthenticationMethod.PASSWORD, now));
+        assertThrows(IllegalArgumentException.class, () -> signer.issueReauthenticated(subject, UserRole.USER, null, now));
+        assertThrows(RoleSelectionNotAllowedException.class, () -> signer.issueReauthenticated(subject, UserRole.ADMIN, ReauthenticationMethod.PASSWORD, now));
+    }
 
     private JwtTokenService service(java.time.Clock clock) {
         var key = new SecretKeySpec("test-secret-that-is-long-enough-1234567890".getBytes(StandardCharsets.UTF_8), "HmacSHA256");
