@@ -2,7 +2,7 @@
 
 日期：2026-11-03。
 
-状态：用户已逐段确认接口契约、状态与并发规则、失败处理及验证范围；本文完成自查，待用户审阅书面设计。尚未开始实现，不代表接口已可用或已获独立审核通过。
+状态：设计提交6f29752已获用户提供的Claude第1/3轮设计审核accepted，零阻断、一条非阻断NOTE-001；本文按该意见微调415措辞，业务契约不变。尚未开始实现，设计accepted不代表实现accepted。处置见[设计审核记录](../../reviews/2026-11-04-email-change-request-design-review.md)。
 
 基线：main @ 36cf271；设计前工作区干净。用户提供的最近独立全量验证结果为1285通过、0失败、0错误、0跳过，本轮文档工作未重跑该验证。
 
@@ -41,7 +41,7 @@ Content-Type: application/json
 ```
 
 - 只接受一个JSON对象及唯一字符串字段newEmail；缺正文、空对象、null、非字符串、重复字段、未知字段、嵌套结构或尾随JSON均返回400 VALIDATION_FAILED。解析不得依赖字符串类型自动强制转换。
-- 使用UTF-8的application/json；非法JSON或编码返回400，媒体类型不支持沿用415处理。
+- 使用UTF-8的application/json；非法JSON或编码返回400；缺失、不支持的Content-Type或显式非UTF-8字符集返回415 UNSUPPORTED_MEDIA_TYPE。当前没有可沿用的通用415契约，本接口新增专用异常及映射，不修改其他接口媒体类型行为。
 - newEmail必填；按String.trim()去除首尾空白，使用Locale.ROOT转小写后，校验非空、合法邮箱和最长120字符。首尾普通空格允许被去除，内部空格不被删除。
 - 原输入含CR/LF直接拒绝，不能通过trim消除换行后放行。只接受单个邮箱地址，拒绝显示名称、地址列表和邮件头注入形式；同时满足Bean Validation及邮件地址校验。
 - 不做Gmail点号、+tag或其他邮箱服务商别名合并，不新增国际化地址转换规则，不放宽现有邮件基础设施的地址支持能力。
@@ -125,7 +125,7 @@ SMTP明确失败或等待超时返回502 EMAIL_SEND_FAILED，不激活本次申�
 
 ## 9. 错误契约
 
-统一application/problem+json，稳定code，type遵循现有urn:problem:music:*格式。新增类型按错误码转换为小写连字符形式；已有错误复用其现有type，不另立同码异义映射。
+统一application/problem+json，稳定code，type遵循现有urn:problem:music:*格式；按现有GlobalExceptionHandler规则将code转小写，保留下划线。例如UNSUPPORTED_MEDIA_TYPE对应urn:problem:music:unsupported_media_type；不改现有problem构造规则或另立同码异义映射。
 
 | 状态 | code | 场景 |
 | --- | --- | --- |
@@ -135,7 +135,7 @@ SMTP明确失败或等待超时返回502 EMAIL_SEND_FAILED，不激活本次申�
 | 409 | EMAIL_UNCHANGED | 与当前邮箱相同 |
 | 409 | EMAIL_ALREADY_EXISTS | 目标被其他账户占用，包括发信后复核发现 |
 | 409 | EMAIL_CHANGE_REQUEST_CONFLICT | 已有pending、绑定变化、租约失效或确定激活冲突 |
-| 415 | 沿用现有媒体类型错误契约 | 不支持的Content-Type |
+| 415 | UNSUPPORTED_MEDIA_TYPE | 缺失、不支持或格式非法的Content-Type，以及显式非UTF-8字符集；本接口专用映射 |
 | 429 | EMAIL_CHANGE_RATE_LIMITED | 任一发送额度超限，附Retry-After |
 | 502 | EMAIL_SEND_FAILED | SMTP明确失败或等待发送超时 |
 | 503 | EMAIL_CHANGE_REQUEST_UNAVAILABLE | 本接口查库/Redis故障、状态损坏、执行器饱和或激活结果未知 |
@@ -189,4 +189,4 @@ curl -i -X POST 'http://localhost:8080/api/v1/users/me/email-change-requests' \
 
 已核对单接口范围、未绑定邮箱准入、两道独立300秒门禁、旧登录不变与最终全部撤销的阶段差异、原邮箱/目标/版本绑定、三层额度、原绝对期限、成功后替换、明确失败与未知结果边界、日志脱敏、迁移不变及真实集成验证要求。无占位业务规则。
 
-用户审阅本文并批准后，使用writing-plans编写中文实施计划；本设计提交不授权直接开始业务代码实现。最终确认接口仍是后续独立任务，不以本文的兼容约束宣称其设计或实现已完成。
+用户已批准本文并提供设计accepted结论，当前使用writing-plans编写中文实施计划，待用户审阅计划；设计通过不授权跳过计划审阅或直接开始业务代码实现。最终确认接口仍是后续独立任务，不以本文的兼容约束宣称其设计或实现已完成。
