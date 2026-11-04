@@ -18,6 +18,13 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
 
+    @Query("select new org.example.music.user.domain.EmailChangeAccountSnapshot("
+            + "user.id, user.email, user.userRole, user.tokenVersion) from UserEntity user where user.id = :userId")
+    Optional<org.example.music.user.domain.EmailChangeAccountSnapshot> findEmailChangeSnapshot(@Param("userId") Integer userId);
+
+    @Query("select user.id from UserEntity user where user.email = :email")
+    Optional<Integer> findEmailOwnerId(@Param("email") String email);
+
     @Query("select new org.example.music.user.domain.UserReauthenticationSnapshot("
             + "user.id, user.email, user.passwordHash, user.userRole, user.tokenVersion) "
             + "from UserEntity user where user.id = :userId")
