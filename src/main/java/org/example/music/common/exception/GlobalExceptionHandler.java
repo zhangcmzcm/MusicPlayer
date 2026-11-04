@@ -10,6 +10,10 @@ import org.example.music.user.exception.EmailChangeSendFailedException;
 import org.example.music.user.exception.EmailChangeRequestUnavailableException;
 import org.example.music.user.exception.EmailChangeRateLimitedException;
 import org.example.music.user.exception.EmailChangeDiagnostics;
+import org.example.music.user.exception.EmailChangeVerificationFailedException;
+import org.example.music.user.exception.EmailChangeConflictException;
+import org.example.music.user.exception.EmailChangeConfirmationUnavailableException;
+import org.example.music.user.exception.EmailChangeConfirmationRateLimitedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
@@ -102,6 +106,30 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(EmailChangeVerificationFailedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeVerificationFailed(EmailChangeVerificationFailedException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_REQUEST, "EMAIL_CHANGE_VERIFICATION_FAILED", "邮箱变更确认未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeConflictException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeConflict(EmailChangeConflictException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.CONFLICT, "EMAIL_CHANGE_CONFLICT", "邮箱变更确认未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeConfirmationUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeConfirmationUnavailable(EmailChangeConfirmationUnavailableException exception, HttpServletRequest request) {
+        LOGGER.warn("Email change confirmation unavailable, traceId={}, exceptionType={}", MDC.get("traceId"),
+                exception.getClass().getSimpleName(), EmailChangeDiagnostics.sanitized(exception));
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "EMAIL_CHANGE_CONFIRMATION_UNAVAILABLE", "邮箱变更确认未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeConfirmationRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeConfirmationRateLimited(EmailChangeConfirmationRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
+                .body(problem(request, HttpStatus.TOO_MANY_REQUESTS, "EMAIL_CHANGE_CONFIRMATION_RATE_LIMITED", "邮箱变更确认过于频繁", exception.getMessage()));
+    }
 
     @ExceptionHandler(EmailChangeValidationException.class)
     public ResponseEntity<ProblemDetail> handleEmailChangeValidation(EmailChangeValidationException exception, HttpServletRequest request) {
