@@ -44,4 +44,10 @@ class EmailChangeRequestReaderTest {
         input.setContent(new byte[]{(byte) 0xc3, 0x28});
         assertThrows(EmailChangeValidationException.class, () -> reader.read(input));
     }
+
+    @ParameterizedTest @ValueSource(strings = {"\\ud800", "\\udfff"})
+    void should_reject_isolated_surrogate_escapes(String escape) {
+        assertThrows(EmailChangeValidationException.class,
+                () -> reader.read(request("{\"newEmail\":\"" + escape + "@example.com\"}")));
+    }
 }

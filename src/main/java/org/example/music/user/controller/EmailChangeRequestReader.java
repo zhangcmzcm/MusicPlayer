@@ -38,7 +38,11 @@ public class EmailChangeRequestReader {
                     throw new EmailChangeValidationException();
                 }
                 String raw = parser.getString();
-                if (raw.indexOf('\r') >= 0 || raw.indexOf('\n') >= 0) throw new EmailChangeValidationException();
+                // JSON转义可能产生孤立UTF-16代理字符；邮箱校验库并不拒绝，UTF-8编码却会替换它。
+                if (raw.indexOf('\r') >= 0 || raw.indexOf('\n') >= 0
+                        || raw.codePoints().anyMatch(point -> point >= 0xd800 && point <= 0xdfff)) {
+                    throw new EmailChangeValidationException();
+                }
                 var result = new EmailChangeRequest(raw.trim().toLowerCase(Locale.ROOT));
                 if (parser.nextToken() != JsonToken.END_OBJECT || parser.nextToken() != null
                         || !validator.validate(result).isEmpty()) throw new EmailChangeValidationException();

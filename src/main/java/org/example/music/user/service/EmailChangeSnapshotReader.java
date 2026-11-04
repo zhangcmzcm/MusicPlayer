@@ -54,7 +54,8 @@ public class EmailChangeSnapshotReader {
     private static String normalizeStoredEmail(String raw) {
         if (raw == null || raw.isBlank()) return null;
         try {
-            if (raw.indexOf('\r') >= 0 || raw.indexOf('\n') >= 0) throw new AddressException();
+            if (raw.indexOf('\r') >= 0 || raw.indexOf('\n') >= 0
+                    || raw.codePoints().anyMatch(point -> point >= 0xd800 && point <= 0xdfff)) throw new AddressException();
             String email = raw.trim().toLowerCase(Locale.ROOT);
             var address = new InternetAddress(email, true);
             address.validate();
