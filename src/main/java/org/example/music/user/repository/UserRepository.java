@@ -18,6 +18,15 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
 
+    @Modifying(clearAutomatically = true)
+    @Query(value = "UPDATE users SET email = :newEmail, token_version = token_version + 1, updated_at = UTC_TIMESTAMP(6) "
+            + "WHERE id = :userId AND (CAST(email AS BINARY) <=> CAST(:previousEmail AS BINARY)) "
+            + "AND token_version = :expectedVersion AND CAST(user_role AS BINARY) = CAST(:previousRole AS BINARY) "
+            + "AND token_version < 9223372036854775807", nativeQuery = true)
+    int changeEmailIfSnapshotMatches(@Param("userId") Integer userId, @Param("previousEmail") String previousEmail,
+            @Param("expectedVersion") long expectedVersion, @Param("previousRole") String previousRole,
+            @Param("newEmail") String newEmail);
+
     @Query("select new org.example.music.user.domain.EmailChangeAccountSnapshot("
             + "user.id, user.email, user.userRole, user.tokenVersion) from UserEntity user where user.id = :userId")
     Optional<org.example.music.user.domain.EmailChangeAccountSnapshot> findEmailChangeSnapshot(@Param("userId") Integer userId);
