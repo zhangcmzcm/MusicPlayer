@@ -135,7 +135,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmailChangeSendFailedException.class)
     public ResponseEntity<ProblemDetail> handleEmailChangeSendFailed(EmailChangeSendFailedException exception, HttpServletRequest request) {
-        LOGGER.warn("Email change request unavailable, traceId={}, exceptionType={}", MDC.get("traceId"),
+        LOGGER.warn("Email change send failed, traceId={}, exceptionType={}", MDC.get("traceId"),
                 exception.getClass().getSimpleName(), EmailChangeDiagnostics.sanitized(exception));
         return response(problem(request, HttpStatus.BAD_GATEWAY, "EMAIL_SEND_FAILED", "邮箱变更请求未完成", exception.getMessage()));
     }

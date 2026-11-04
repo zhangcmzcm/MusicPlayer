@@ -92,7 +92,8 @@ class EmailChangeRequestIntegrationTest {
     @ParameterizedTest @CsvSource({"USER,USER,false","ADMIN,ADMIN,false","ADMIN,USER,false"})
     void should_use_real_filter_chain_current_email_and_leave_entire_account_unchanged(UserRole account,UserRole login,boolean legacy) throws Exception {
         var user=save(account,"Alice@Example.com");String token=token(user,login,legacy);var before=jdbc.queryForMap("select * from users where id=?",user.getId());
-        var result=mvc.perform(post(PATH).header("Authorization","Bearer "+token).header("X-User-Id","999").header("X-Email","victim@example.com").header("X-Forwarded-For","198.51.100.77").param("email","victim@example.com").param("userId","999").contentType("application/json").content("{\"newEmail\":\" New@Example.com \"}"))
+        String remoteIp="203.0.113.8",forgedIp="198.51.100.77";
+        var result=mvc.perform(post(PATH).header("Authorization","Bearer "+token).header("X-User-Id","999").header("X-Email","victim@example.com").header("X-Forwarded-For",forgedIp).param("email","victim@example.com").param("userId","999").contentType("application/json").content("{\"newEmail\":\" New@Example.com \"}").with(request->{request.setRemoteAddr(remoteIp);return request;}))
                 .andExpect(status().isCreated()).andExpect(header().string("Cache-Control","no-store")).andExpect(header().doesNotExist("Location")).andReturn();
         var body=json.readTree(result.getResponse().getContentAsString());assertEquals(2,body.size());String id=body.get("challengeId").asString();assertEquals(32,Base64.getUrlDecoder().decode(id).length);
         var state=active(user);assertEquals(10,state.size());assertEquals("ACTIVE",state.get("state"));assertEquals("0",state.get("attempts"));assertEquals("new@example.com",sent.get().recipient());assertTrue(sent.get().code().matches("[0-9]{6}"));
@@ -101,7 +102,11 @@ class EmailChangeRequestIntegrationTest {
         assertEquals(300000,Long.parseLong((String)state.get("expiresAtMs"))-Long.parseLong((String)state.get("reservedAtMs")));
         assertEquals(Instant.parse(body.get("expiresAt").asString()).toEpochMilli(),expiry(key("active",user)));
         assertFalse(Boolean.TRUE.equals(redis.hasKey(key("pending",user))));assertEquals(before,jdbc.queryForMap("select * from users where id=?",user.getId()));
-        assertFalse(redis.keys(PREFIX+"ip:*").toString().contains("127.0.0.1"));verifyNoInteractions(tokens);
+        String remoteKey=PREFIX+"ip:"+Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(remoteIp.getBytes(StandardCharsets.UTF_8)));
+        String forgedKey=PREFIX+"ip:"+Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(forgedIp.getBytes(StandardCharsets.UTF_8)));
+        assertEquals(Set.of(remoteKey),redis.keys(PREFIX+"ip:*"));
+        assertEquals("1",redis.opsForHash().get(remoteKey,"count"));
+        assertFalse(Boolean.TRUE.equals(redis.hasKey(forgedKey)));verifyNoInteractions(tokens);
     }
     @ParameterizedTest @NullAndEmptySource @ValueSource(strings={"   "})
     void should_allow_first_binding_without_changing_account(String email) throws Exception {

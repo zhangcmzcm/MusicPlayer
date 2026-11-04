@@ -1,6 +1,6 @@
 # 新邮箱变更验证码申请接口实现审核材料
 
-日期：2026-11-04。阶段：本地实现与自验完成，首次独立实现送审；设计已获第1/3轮accepted，设计轮次与实现审核区分。当前实现尚未获得Claude accepted，不开始下一个接口，不自动推送。
+日期：2026-11-04。阶段：本地实现与自验完成，首次独立实现送审；设计已获第1/3轮accepted，设计轮次与实现审核区分。用户已提供Claude对c49b8fc的第1/3轮实现审核accepted，零阻断；原始送审证据保留如下，审核结论与本轮非阻断处置见末尾。用户已授权收尾后推送，当前不开始下一个接口。
 
 ## 本次接口
 
@@ -135,3 +135,20 @@ ACCESS_TOKEN应为本人有效且满足近期资格的凭据，示例不包含�
 - src/test/java/org/example/music/user/service/EmailChangeRecentAuthenticationGuardTest.java
 - src/test/java/org/example/music/user/service/EmailChangeRequestServiceTest.java
 - src/test/java/org/example/music/user/service/EmailChangeSnapshotReaderTest.java
+
+
+## 独立实现审核与非阻断建议闭环
+
+用户提供Claude对main截至c49b8fc的第1/3轮实现审核accepted，零阻断；独立执行MINIO_INTEGRATION_TESTS=true的cleanTest check，BUILD SUCCESSFUL（10分54秒，退出码0），114类1445通过/0失败/0错误/0跳过，MySQL/Redis/MinIO实跑。本段为用户提供的独立证据，不冒称Codex本轮执行。NOTE-001已由Claude核实关闭，C13的challengeId笔误也由审核方确认更正。
+
+| 问题编号与原分级 | 问题核实及证据 | 分级判断 | 修改方向判断 | 实际处置 | 验证结果或待复核事项 |
+| --- | --- | --- | --- | --- | --- |
+| NOTE-001 非阻断，沿用设计阶段编号 | 专用415异常/advice、下划线type、真实HTTP/OpenAPI及旧读取器400回归均获独立核实 | 认可原非阻断分级 | 采纳且已落实 | 审核方已明确关闭；无需重复修改 | 独立全量1445/0/0/0，114类 |
+| NOTE-002 非阻断，GlobalExceptionHandler原138行502日志标签 | 成立：502与503原先均记录Email change request unavailable；exceptionType与HTTP响应正确，不影响接口业务 | 认可，不作为accepted的附加条件 | 采纳，仅区分事件文案，不改响应、日志级别或脱敏 | 本轮将502标签改为Email change send failed，503保持原标签 | Controller 5项及真实HTTP链路48项均通过；日志脱敏、502/503响应回归正常 |
+| NOTE-003 非阻断，EmailChangeRequestIntegrationTest原104行IP断言 | 回归防护不足成立：原断言只检查没有明文127.0.0.1，不能区分真实IP与伪造转发头的摘要。原断言对明文键回归仍有作用，“恒真”仅限当前摘要实现前提 | 认可，现有remoteAddr-only实现正确，不是越权或限流实现缺陷 | 采纳加强方向，显式控制真实连接IP及伪造X-Forwarded-For，检查两者摘要键 | 本轮断言仅真实IP摘要键存在、count=1，伪造IP摘要键不存在；覆盖USER/ADMIN及保留USER登录角色的ADMIN账户三种场景 | 同一真实MySQL/Redis链路测试48项通过，无跳过；原3个参数化成功场景保留，未删减测试 |
+
+本轮实际运行：`cmd /c gradlew.bat test --tests "org.example.music.user.controller.EmailChangeRequestControllerTest" --tests "org.example.music.user.EmailChangeRequestIntegrationTest" check --console=plain`，BUILD SUCCESSFUL（52秒），2类53通过/0失败/0错误/0跳过。此命令对test使用筛选后执行check，是受影响范围验证，不是再次全量1445项；符合本次accepted报告关于两处非阻断收尾只需重跑受影响测试的要求。最新已独立验证的全量仍为c49b8fc上的1445/0/0/0，不把历史全量冒充本轮收尾结果。
+
+报告表述复核：C2“403逐一测试断言”应收紧为OpenAPI声明403，本接口未实际触发403；角色/版本失效按既定契约返回401。纯追加也不能单独证明没有行为变化，范围结论需结合具体diff及回归证据。两处说明均不改变accepted，无阻断争议，不额外扩大改动。
+
+本次收尾仅修改502日志文案、IP断言及审核/设计/计划记录，无迁移/依赖/配置/接口契约变化。NOTE-002/003登记为本轮已处理、自验通过，不伪称Claude已再次审核该收尾提交；原accepted报告明确非阻断可本轮处理、无重审前置。用户已明确授权完成后推送，后续执行正常快进推送，不强制覆盖远端。
