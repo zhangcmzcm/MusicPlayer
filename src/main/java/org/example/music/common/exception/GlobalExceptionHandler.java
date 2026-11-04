@@ -1,5 +1,15 @@
 package org.example.music.common.exception;
 
+import org.example.music.user.exception.EmailChangeValidationException;
+import org.example.music.user.exception.EmailChangeUnsupportedMediaTypeException;
+import org.example.music.user.exception.ReauthenticationRequiredException;
+import org.example.music.user.exception.EmailUnchangedException;
+import org.example.music.user.exception.EmailChangeEmailAlreadyExistsException;
+import org.example.music.user.exception.EmailChangeRequestConflictException;
+import org.example.music.user.exception.EmailChangeSendFailedException;
+import org.example.music.user.exception.EmailChangeRequestUnavailableException;
+import org.example.music.user.exception.EmailChangeRateLimitedException;
+import org.example.music.user.exception.EmailChangeDiagnostics;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
@@ -92,6 +102,57 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(EmailChangeValidationException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeValidation(EmailChangeValidationException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "邮箱变更请求未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeUnsupportedMediaTypeException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeUnsupportedMediaType(EmailChangeUnsupportedMediaTypeException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE", "邮箱变更请求未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReauthenticationRequiredException.class)
+    public ResponseEntity<ProblemDetail> handleReauthenticationRequired(ReauthenticationRequiredException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.UNAUTHORIZED, "REAUTHENTICATION_REQUIRED", "邮箱变更请求未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailUnchangedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailUnchanged(EmailUnchangedException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.CONFLICT, "EMAIL_UNCHANGED", "邮箱变更请求未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeEmailAlreadyExistsException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeEmailAlreadyExists(EmailChangeEmailAlreadyExistsException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS", "邮箱变更请求未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeRequestConflictException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeRequestConflict(EmailChangeRequestConflictException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.CONFLICT, "EMAIL_CHANGE_REQUEST_CONFLICT", "邮箱变更请求未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeSendFailedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeSendFailed(EmailChangeSendFailedException exception, HttpServletRequest request) {
+        LOGGER.warn("Email change request unavailable, traceId={}, exceptionType={}", MDC.get("traceId"),
+                exception.getClass().getSimpleName(), EmailChangeDiagnostics.sanitized(exception));
+        return response(problem(request, HttpStatus.BAD_GATEWAY, "EMAIL_SEND_FAILED", "邮箱变更请求未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeRequestUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeRequestUnavailable(EmailChangeRequestUnavailableException exception, HttpServletRequest request) {
+        LOGGER.warn("Email change request unavailable, traceId={}, exceptionType={}", MDC.get("traceId"),
+                exception.getClass().getSimpleName(), EmailChangeDiagnostics.sanitized(exception));
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "EMAIL_CHANGE_REQUEST_UNAVAILABLE", "邮箱变更请求未完成", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EmailChangeRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailChangeRateLimited(EmailChangeRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
+                .body(problem(request, HttpStatus.TOO_MANY_REQUESTS, "EMAIL_CHANGE_RATE_LIMITED", "邮箱变更请求过于频繁", exception.getMessage()));
+    }
 
     @ExceptionHandler(ReauthenticationValidationException.class)
     public ResponseEntity<ProblemDetail> handleReauthenticationValidation(
