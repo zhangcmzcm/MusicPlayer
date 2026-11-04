@@ -1,8 +1,8 @@
 # 新邮箱变更验证码申请接口实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 >
-> 执行方式遵从项目既定约定：Codex唯一实现，Claude独立只读审核，不派发实现子代理。以上执行子技能当前未列为可用，不声称已调用；用户审阅计划前不开始实现。
+> 执行方式遵从项目既定约定：Codex唯一实现，Claude独立只读审核，不派发实现子代理。以上执行子技能当前未列为可用，不声称已调用；用户已以“开始吧”批准本计划及16 KiB局部上限，当前按既定方式实现。
 
 **Goal:** 实现唯一接口POST /api/v1/users/me/email-change-requests，在近期真实认证后向目标新邮箱发送专用验证码，成功激活才返回201，不修改账户或登录状态。
 
@@ -83,11 +83,11 @@
 
 最小断言锚点：`should_allow_exactly_300_seconds()`使用`assertDoesNotThrow(() -> guard.requireRecent(actor, session))`；`should_reject_300_seconds_plus_one_nanosecond()`使用`assertThrows(ReauthenticationRequiredException.class, () -> guard.requireRecent(actor, session))`；`should_normalize_before_length_validation()`使用`assertEquals("new@example.com", reader.read(request).newEmail())`，request包含JSON字符串`" New@Example.com "`。
 
-- [ ] **步骤1：写门禁和读取器失败测试。** Guard固定Clock并参数化认证距今299秒、300秒、300秒加1纳秒，分别成功、成功、401；authenticatedAt=null为401，actor/可信上下文缺失或版本非法为InvalidTokenException，不回填时间。请求测试断言`" New@Example.com "`→`"new@example.com"`、120字符合法地址成功、121字符拒绝；原CR/LF即使trim可去除也拒绝；数字/null/数组/嵌套/重复或未知字段、尾随对象、非法UTF-8均400，显示名称及多收件人拒绝。
-- [ ] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.EmailChangeRequestReaderTest" --tests "org.example.music.user.service.EmailChangeRecentAuthenticationGuardTest"`；记录缺实现导致的编译或断言失败，不能用空测试绿灯替代。
-- [ ] **步骤3：实现接口。** 使用既有Clock精确Duration比较，不能取整秒放宽超窗。Reader通过UTF-8严格解码器和Jackson流式token检查，先拒绝原CR/LF，再trim/Locale.ROOT小写、Bean Validation及InternetAddress严格单地址校验；不调用旧读取器或修改旧约束。缺失/格式非法/非application/json的Content-Type及显式非UTF-8字符集抛专用415；非法正文/UTF-8仍400。采用本端点局部16384字节正文读取预算（包括尾随空白，超出400），不无界readAllBytes或修改全局Jackson；这是待用户审阅的资源保护默认值，不把规范化前120字符作为业务上限。读到EOF检查预算和尾随内容，不能信任Content-Length；增加正文恰好16384/16385字节及原字符串超过120但trim后合法的测试，并在API文档说明局部上限。
-- [ ] **步骤4：运行同一命令至全绿。** 参数化用例包含UTF-8显式参数、大小写媒体类型、非法charset，检查DTO.toString不含邮箱/标识。边界不依赖sleep或真实墙钟。
-- [ ] **步骤5：检查本任务实际文件后中文提交。** `git diff --check`；仅暂存上述文件，提交 `feat: 增加邮箱变更近期验证与严格请求校验`。此提交尚不暴露HTTP接口。
+- [x] **步骤1：写门禁和读取器失败测试。** Guard固定Clock并参数化认证距今299秒、300秒、300秒加1纳秒，分别成功、成功、401；authenticatedAt=null为401，actor/可信上下文缺失或版本非法为InvalidTokenException，不回填时间。请求测试断言`" New@Example.com "`→`"new@example.com"`、120字符合法地址成功、121字符拒绝；原CR/LF即使trim可去除也拒绝；数字/null/数组/嵌套/重复或未知字段、尾随对象、非法UTF-8均400，显示名称及多收件人拒绝。
+- [x] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.EmailChangeRequestReaderTest" --tests "org.example.music.user.service.EmailChangeRecentAuthenticationGuardTest"`；记录缺实现导致的编译或断言失败，不能用空测试绿灯替代。
+- [x] **步骤3：实现接口。** 使用既有Clock精确Duration比较，不能取整秒放宽超窗。Reader通过UTF-8严格解码器和Jackson流式token检查，先拒绝原CR/LF，再trim/Locale.ROOT小写、Bean Validation及InternetAddress严格单地址校验；不调用旧读取器或修改旧约束。缺失/格式非法/非application/json的Content-Type及显式非UTF-8字符集抛专用415；非法正文/UTF-8仍400。采用本端点局部16384字节正文读取预算（包括尾随空白，超出400），不无界readAllBytes或修改全局Jackson；这是待用户审阅的资源保护默认值，不把规范化前120字符作为业务上限。读到EOF检查预算和尾随内容，不能信任Content-Length；增加正文恰好16384/16385字节及原字符串超过120但trim后合法的测试，并在API文档说明局部上限。
+- [x] **步骤4：运行同一命令至全绿。** 参数化用例包含UTF-8显式参数、大小写媒体类型、非法charset，检查DTO.toString不含邮箱/标识。边界不依赖sleep或真实墙钟。
+- [x] **步骤5：检查本任务实际文件后中文提交。** `git diff --check`；仅暂存上述文件，提交 `feat: 增加邮箱变更近期验证与严格请求校验`。此提交尚不暴露HTTP接口。
 
 ### 任务2：独立Redis申请状态与三层原子限流
 
@@ -97,13 +97,13 @@
 
 最小断言锚点：`should_keep_original_deadline_when_activated()`在reserve/prepare/activate后使用`assertEquals(300000L, reservation.expiresAt().toEpochMilli() - reservation.reservedAt().toEpochMilli())`，并直接查询Redis的PEXPIRETIME等于expiresAt；`should_share_target_cooldown_across_users()`在不同用户、不同IP、同一newEmail的第二次reserve上断言`assertThrows(EmailChangeRateLimitedException.class, () -> store.reserve(secondBinding, secondDigest, secondIpDigest))`，且七项状态快照不变。
 
-- [ ] **步骤1：写存储协议及真Redis失败测试。** 参数化首次准入、用户冷却/第11次日额度、目标跨账户冷却/第11次日额度、IP第6次；每次拒绝对比全部配额内容及PEXPIRETIME不变；至少一个并发测试让多个用户以不同IP申请同一目标，最多一个在冷却期获准。首次绑定与已有邮箱分别验证prepare保持原时间，activate才替换旧ACTIVE，cancel仅动本pending。
-- [ ] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.repository.EmailChangeRequestStoreTest" --tests "org.example.music.user.EmailChangeRequestStoreIntegrationTest"`；MySQL无关，Redis使用既有Testcontainers模式与redis:8.10.2镜像，不mock脚本执行。
-- [ ] **步骤3：固定键与schema。** 前缀music:auth:email-change:，key为user-cooldown:<userId>、user-daily:<userId>、target-cooldown:<SHA256规范化新邮箱>、target-daily:<同摘要>、ip:<ipDigest>、pending:<userId>、active:<userId>。pending字段state/challengeDigest/userId/currentEmail/newEmail/tokenVersion/reservedAtMs/expiresAtMs/leaseUntilMs；currentEmail空字符串代表未绑定，其余邮箱不得为空；PREPARED增加codeHash，ACTIVE移除leaseUntilMs并增加codeHash/attempts=0。冷却仅resetAtMs，日/IP桶为count/resetAtMs，全部验证精确字段数、TYPE、规范数字及真实绝对TTL，不对无界hash直接HGETALL。tokenVersion按十进制字符串验证到Long.MAX_VALUE，不转Lua double；毫秒限制安全整数并用十进制无指数格式保存。
-- [ ] **步骤4：实现reserve的全预检与写入。** KEYS按用户冷却、用户日、目标冷却、目标日、IP、pending、active固定七项；先校验所有现存状态完整性，再计算所有阻塞桶，限流返回429及最大等待秒数；额度允许但live pending返回409，两者均不写。成功才一次计数、设绝对TTL并创建PREPARING。Redis TIME决定300000ms期限、60000ms租约/冷却/IP窗口及UTC日界；日额度各10次、IP5次；不使用测试时间覆盖生产参数。
-- [ ] **步骤5：实现归属CAS及严格回包。** prepare仅本绑定/digest的PREPARING写摘要；activate仅本PREPARED且租约/原到期仍有效时替换ACTIVE；cancel仅本归属删除pending，缺失或归属不同noop，不改ACTIVE或额度。reserve固定`[0,reservedAtMs,expiresAtMs,leaseUntilMs]`成功、`[1,retryAfterSeconds,0,0]`限流、`[2,0,0,0]`损坏、`[3,0,0,0]`pending冲突；其他操作`[0]`成功、`[1]`确定冲突、`[2]`损坏，cancel仅0/2。Java严格检查Long类型、长度、范围、两个时间差；空/未知回包及Redis异常503，不重试。日志使用Diagnostics安全副本，不保留原消息/cause/suppressed。
-- [ ] **步骤6：扩充故障与并发测试并跑同命令至全绿。** 类型/字段/TTL/计数损坏、Long.MAX_VALUE、未知响应、真实绝对过期、UTC日界与冷却不重置、同码不同challenge、旧cancel不删新pending、激活后丢回包不恢复旧ACTIVE。UTC helper用固定输入边界测，生产TIME配合真实TTL验证；用闩锁而非sleep控制交错。损坏任一桶时断言其他桶未部分扣额；未知执行结果不承诺未扣额。
-- [ ] **步骤7：检查并提交。** `git diff --check`，只暂存任务文件，提交 `feat: 增加邮箱变更申请原子存储与三层限流`。不增加生产读取/消费/调试端点，不提前实现确认接口。
+- [x] **步骤1：写存储协议及真Redis失败测试。** 参数化首次准入、用户冷却/第11次日额度、目标跨账户冷却/第11次日额度、IP第6次；每次拒绝对比全部配额内容及PEXPIRETIME不变；至少一个并发测试让多个用户以不同IP申请同一目标，最多一个在冷却期获准。首次绑定与已有邮箱分别验证prepare保持原时间，activate才替换旧ACTIVE，cancel仅动本pending。
+- [x] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.repository.EmailChangeRequestStoreTest" --tests "org.example.music.user.EmailChangeRequestStoreIntegrationTest"`；MySQL无关，Redis使用既有Testcontainers模式与redis:8.10.2镜像，不mock脚本执行。
+- [x] **步骤3：固定键与schema。** 前缀music:auth:email-change:，key为user-cooldown:<userId>、user-daily:<userId>、target-cooldown:<SHA256规范化新邮箱>、target-daily:<同摘要>、ip:<ipDigest>、pending:<userId>、active:<userId>。pending字段state/challengeDigest/userId/currentEmail/newEmail/tokenVersion/reservedAtMs/expiresAtMs/leaseUntilMs；currentEmail空字符串代表未绑定，其余邮箱不得为空；PREPARED增加codeHash，ACTIVE移除leaseUntilMs并增加codeHash/attempts=0。冷却仅resetAtMs，日/IP桶为count/resetAtMs，全部验证精确字段数、TYPE、规范数字及真实绝对TTL，不对无界hash直接HGETALL。tokenVersion按十进制字符串验证到Long.MAX_VALUE，不转Lua double；毫秒限制安全整数并用十进制无指数格式保存。
+- [x] **步骤4：实现reserve的全预检与写入。** KEYS按用户冷却、用户日、目标冷却、目标日、IP、pending、active固定七项；先校验所有现存状态完整性，再计算所有阻塞桶，限流返回429及最大等待秒数；额度允许但live pending返回409，两者均不写。成功才一次计数、设绝对TTL并创建PREPARING。Redis TIME决定300000ms期限、60000ms租约/冷却/IP窗口及UTC日界；日额度各10次、IP5次；不使用测试时间覆盖生产参数。
+- [x] **步骤5：实现归属CAS及严格回包。** prepare仅本绑定/digest的PREPARING写摘要；activate仅本PREPARED且租约/原到期仍有效时替换ACTIVE；cancel仅本归属删除pending，缺失或归属不同noop，不改ACTIVE或额度。reserve固定`[0,reservedAtMs,expiresAtMs,leaseUntilMs]`成功、`[1,retryAfterSeconds,0,0]`限流、`[2,0,0,0]`损坏、`[3,0,0,0]`pending冲突；其他操作`[0]`成功、`[1]`确定冲突、`[2]`损坏，cancel仅0/2。Java严格检查Long类型、长度、范围、两个时间差；空/未知回包及Redis异常503，不重试。日志使用Diagnostics安全副本，不保留原消息/cause/suppressed。
+- [x] **步骤6：扩充故障与并发测试并跑同命令至全绿。** 类型/字段/TTL/计数损坏、Long.MAX_VALUE、未知响应、真实绝对过期、UTC日界与冷却不重置、同码不同challenge、旧cancel不删新pending、激活后丢回包不恢复旧ACTIVE。UTC helper用固定输入边界测，生产TIME配合真实TTL验证；用闩锁而非sleep控制交错。损坏任一桶时断言其他桶未部分扣额；未知执行结果不承诺未扣额。
+- [x] **步骤7：检查并提交。** `git diff --check`，只暂存任务文件，提交 `feat: 增加邮箱变更申请原子存储与三层限流`。不增加生产读取/消费/调试端点，不提前实现确认接口。
 
 ### 任务3：专用SMTP客户端及有界发送
 
@@ -113,11 +113,11 @@
 
 最小断言锚点：`should_keep_slots_occupied_after_logical_timeout()`在四个任务实际进入发送器后使用`assertThrows(EmailChangeRequestUnavailableException.class, () -> delivery.send(message))`；`should_isolate_smtp_timeouts()`断言`assertEquals("5000", client.getSession().getProperty("mail.smtp.writetimeout"))`，并对源客户端的原属性值做相等断言。
 
-- [ ] **步骤1：写邮件失败测试。** 工厂保留原host/port/protocol/username/password/defaultEncoding、TLS/auth属性，源对象/源Properties不变，新Session独立，smtp/smtps三类超时各5000ms、debug关闭。MimeMessage收件人为规范化目标、UTF-8、包含六位码及原expiresAt，明确尚未变更邮箱；发送异常映射专用502且诊断无秘密。
-- [ ] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.email.IsolatedEmailChangeMailClientFactoryTest" --tests "org.example.music.user.email.SmtpEmailChangeEmailSenderTest" --tests "org.example.music.user.email.BoundedEmailChangeEmailDeliveryTest"`。
-- [ ] **步骤3：实现隔离客户端和传输。** 从现有JavaMailSender复制成私有客户端，不注册第二个公共JavaMailSender bean、不修改旧factory；非可隔离源以安全启动错误拒绝。Message/日志不泄漏邮箱与验证码。MessagingException/MailException→EmailChangeSendFailedException，意外程序异常保留安全500诊断。
-- [ ] **步骤4：实现执行器并添加真实并发断言。** 四个不可中断受控任务占满，第五个立即503；短测试等待预算触发502后任务仍占槽，后续仍拒绝，释放闩锁后实际退出才恢复容量；迟到任务无存储能力。InterruptedException恢复中断标记并取消，Timeout/Cancellation→502，RejectedExecutionException→503；关闭停止接单并shutdownNow，finally释放测试线程。断言生产参数为4/零队列/20秒，不实际等待20秒做单测。
-- [ ] **步骤5：跑同命令全绿并提交。** 旧再次验证邮件配置和容量保持原样；`git diff --check`后提交 `feat: 增加隔离的邮箱变更验证码发送`。
+- [x] **步骤1：写邮件失败测试。** 工厂保留原host/port/protocol/username/password/defaultEncoding、TLS/auth属性，源对象/源Properties不变，新Session独立，smtp/smtps三类超时各5000ms、debug关闭。MimeMessage收件人为规范化目标、UTF-8、包含六位码及原expiresAt，明确尚未变更邮箱；发送异常映射专用502且诊断无秘密。
+- [x] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.email.IsolatedEmailChangeMailClientFactoryTest" --tests "org.example.music.user.email.SmtpEmailChangeEmailSenderTest" --tests "org.example.music.user.email.BoundedEmailChangeEmailDeliveryTest"`。
+- [x] **步骤3：实现隔离客户端和传输。** 从现有JavaMailSender复制成私有客户端，不注册第二个公共JavaMailSender bean、不修改旧factory；非可隔离源以安全启动错误拒绝。Message/日志不泄漏邮箱与验证码。MessagingException/MailException→EmailChangeSendFailedException，意外程序异常保留安全500诊断。
+- [x] **步骤4：实现执行器并添加真实并发断言。** 四个不可中断受控任务占满，第五个立即503；短测试等待预算触发502后任务仍占槽，后续仍拒绝，释放闩锁后实际退出才恢复容量；迟到任务无存储能力。InterruptedException恢复中断标记并取消，Timeout/Cancellation→502，RejectedExecutionException→503；关闭停止接单并shutdownNow，finally释放测试线程。断言生产参数为4/零队列/20秒，不实际等待20秒做单测。
+- [x] **步骤5：跑同命令全绿并提交。** 旧再次验证邮件配置和容量保持原样；`git diff --check`后提交 `feat: 增加隔离的邮箱变更验证码发送`。
 
 ### 任务4：账户快照与发送业务协调
 
@@ -127,12 +127,12 @@
 
 最小断言锚点：`should_not_parse_or_reserve_when_recent_authentication_is_missing()`使用`assertThrows(ReauthenticationRequiredException.class, () -> service.request(actor, legacySession, input, ip))`后`verifyNoInteractions(input, snapshots, store, delivery)`；`should_keep_admission_when_parsing_crosses_window()`让input移动测试Clock，再断言`assertEquals(reservation.expiresAt(), response.expiresAt())`且activate恰好一次。
 
-- [ ] **步骤1：写协调失败测试。** input Supplier带调用计数；超窗/缺auth_time不得调用input、DB、Redis或邮件，合格后input只调用一次。入口恰好300秒、解析后推进Clock至301秒仍继续；SMTP后再推进时间也不重复门禁。成功调用顺序为guard→input→loadBinding→requireTargetAvailable→reserve→prepare→delivery→loadBinding→requireTargetAvailable→activate；响应ID对应摘要和原到期。
-- [ ] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.service.EmailChangeSnapshotReaderTest" --tests "org.example.music.user.service.EmailChangeRequestServiceTest"`。
-- [ ] **步骤3：实现快照读取和归属判定。** loadBinding校验ID/角色/版本、规范化数据库原邮箱，null/空白→null，非空坏地址→503；账户消失或版本失效沿用CurrentUserRevokedException，不升级登录角色。requireTargetAvailable先比较规范化原/新邮箱，再查询ownerId：命中本人→EMAIL_UNCHANGED，命中他人→EMAIL_ALREADY_EXISTS，无命中通过；不加载完整Entity/密码。捕获事务启动/查询/完成故障，不用@Transactional方法内部catch遗漏提交失败。
-- [ ] **步骤4：实现协调与清理。** guard使用一次Clock，再调用input完成Controller提供的解析；生成32随机字节challengeId、SHA-256摘要和六位ASCII码，reserve后BCrypt哈希，再prepare和发送。发信后loadBinding与原绑定比较，变化先409，再查目标可用性后activate；标记激活确认后才返回201 DTO。finally仅在已尝试准入且未确认激活时按本binding/digest取消pending；清理异常安全日志且不覆盖主异常，不退款、不恢复ACTIVE。
-- [ ] **步骤5：补齐故障验证并跑全绿。** 初次查库/输入失败不reserve；reserve实际执行后丢回包仍尝试归属清理；哈希、发送、复核、prepare/activate异常各走对应边界；activate执行后丢回包返回503且不恢复旧ACTIVE。并发改原邮箱、版本、角色、账户删除、目标被占用均覆盖；即使final cleanup失败也不把PREPARED当有效凭据。快照事务开始和完成失败都503；未知异常以脱敏包装进入500。
-- [ ] **步骤6：检查并提交。** `git diff --check`，提交 `feat: 协调本人邮箱变更申请与绑定复核`；不注入JwtTokenService，不提供任何账户更新方法。
+- [x] **步骤1：写协调失败测试。** input Supplier带调用计数；超窗/缺auth_time不得调用input、DB、Redis或邮件，合格后input只调用一次。入口恰好300秒、解析后推进Clock至301秒仍继续；SMTP后再推进时间也不重复门禁。成功调用顺序为guard→input→loadBinding→requireTargetAvailable→reserve→prepare→delivery→loadBinding→requireTargetAvailable→activate；响应ID对应摘要和原到期。
+- [x] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.service.EmailChangeSnapshotReaderTest" --tests "org.example.music.user.service.EmailChangeRequestServiceTest"`。
+- [x] **步骤3：实现快照读取和归属判定。** loadBinding校验ID/角色/版本、规范化数据库原邮箱，null/空白→null，非空坏地址→503；账户消失或版本失效沿用CurrentUserRevokedException，不升级登录角色。requireTargetAvailable先比较规范化原/新邮箱，再查询ownerId：命中本人→EMAIL_UNCHANGED，命中他人→EMAIL_ALREADY_EXISTS，无命中通过；不加载完整Entity/密码。捕获事务启动/查询/完成故障，不用@Transactional方法内部catch遗漏提交失败。
+- [x] **步骤4：实现协调与清理。** guard使用一次Clock，再调用input完成Controller提供的解析；生成32随机字节challengeId、SHA-256摘要和六位ASCII码，reserve后BCrypt哈希，再prepare和发送。发信后loadBinding与原绑定比较，变化先409，再查目标可用性后activate；标记激活确认后才返回201 DTO。finally仅在已尝试准入且未确认激活时按本binding/digest取消pending；清理异常安全日志且不覆盖主异常，不退款、不恢复ACTIVE。
+- [x] **步骤5：补齐故障验证并跑全绿。** 初次查库/输入失败不reserve；reserve实际执行后丢回包仍尝试归属清理；哈希、发送、复核、prepare/activate异常各走对应边界；activate执行后丢回包返回503且不恢复旧ACTIVE。并发改原邮箱、版本、角色、账户删除、目标被占用均覆盖；即使final cleanup失败也不把PREPARED当有效凭据。快照事务开始和完成失败都503；未知异常以脱敏包装进入500。
+- [x] **步骤6：检查并提交。** `git diff --check`，提交 `feat: 协调本人邮箱变更申请与绑定复核`；不注入JwtTokenService，不提供任何账户更新方法。
 
 ### 任务5：HTTP入口、专用错误映射与API说明
 
@@ -142,12 +142,12 @@
 
 最小断言锚点：`should_return_stable_415_for_unsupported_media_type()`对近期有效用户的text/plain请求断言`status().isUnsupportedMediaType()`、`jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE")`、`jsonPath("$.type").value("urn:problem:music:unsupported_media_type")`和`content().contentTypeCompatibleWith("application/problem+json")`。
 
-- [ ] **步骤1：写HTTP失败测试。** 201恰好两个字段、no-store、无Location，USER/ADMIN本人；401 REAUTHENTICATION_REQUIRED不解析非法正文；近期有效时错误媒体类型415 UNSUPPORTED_MEDIA_TYPE，type精确为urn:problem:music:unsupported_media_type。其余400/409三码/429（Retry-After）/502/503/500全部断言status、ProblemDetail媒体类型、code/type且无秘密。无认证与已认证但角色不再允许，沿用现有认证错误；不伪造“其他用户参数可访问”的场景。
-- [ ] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.EmailChangeRequestControllerTest"`。
-- [ ] **步骤3：实现唯一入口与专用advice映射。** 增加本用途异常处理，415只处理EmailChangeUnsupportedMediaTypeException，不加跨接口HttpMediaTypeNotSupportedException处理。用既有problem构造器生成小写下划线type；429传正整数Retry-After；502/503日志安全。不改SecurityConfig、TokenVersionAuthenticationFilter或旧映射。
-- [ ] **步骤4：补齐OpenAPI与中文API文档。** 写Tag/Operation/Schema/ApiResponse，覆盖201、400、401、403、409、415、429、500、502、503及no-store/Retry-After，说明普通JWT过期/签名错误沿用现状，不能假定全部有ProblemDetail。文档给请求规范化、三层限流、失败不退额、发送不保证送达、结果未知、替换规则、未绑定可用、curl、返回示例；确认接口只作后续说明，不虚构路径。
-- [ ] **步骤5：跑本任务及旧读取器/Controller回归。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.EmailChangeRequestControllerTest" --tests "org.example.music.user.controller.ReauthenticationRequestReaderTest" --tests "org.example.music.user.controller.ReauthenticationControllerTest" --tests "org.example.music.user.controller.ReauthenticationEmailRequestControllerTest"`；新415准确，旧端点媒体类型契约不变。检查OpenAPI生成结果，不只核对注释文字。
-- [ ] **步骤6：检查并提交。** `git diff --check`，提交 `feat: 暴露本人邮箱变更验证码申请接口`。这一步全绿仍不能宣称接口完成，须任务6真实验证。
+- [x] **步骤1：写HTTP失败测试。** 201恰好两个字段、no-store、无Location，USER/ADMIN本人；401 REAUTHENTICATION_REQUIRED不解析非法正文；近期有效时错误媒体类型415 UNSUPPORTED_MEDIA_TYPE，type精确为urn:problem:music:unsupported_media_type。其余400/409三码/429（Retry-After）/502/503/500全部断言status、ProblemDetail媒体类型、code/type且无秘密。无认证与已认证但角色不再允许，沿用现有认证错误；不伪造“其他用户参数可访问”的场景。
+- [x] **步骤2：运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.EmailChangeRequestControllerTest"`。
+- [x] **步骤3：实现唯一入口与专用advice映射。** 增加本用途异常处理，415只处理EmailChangeUnsupportedMediaTypeException，不加跨接口HttpMediaTypeNotSupportedException处理。用既有problem构造器生成小写下划线type；429传正整数Retry-After；502/503日志安全。不改SecurityConfig、TokenVersionAuthenticationFilter或旧映射。
+- [x] **步骤4：补齐OpenAPI与中文API文档。** 写Tag/Operation/Schema/ApiResponse，覆盖201、400、401、403、409、415、429、500、502、503及no-store/Retry-After，说明普通JWT过期/签名错误沿用现状，不能假定全部有ProblemDetail。文档给请求规范化、三层限流、失败不退额、发送不保证送达、结果未知、替换规则、未绑定可用、curl、返回示例；确认接口只作后续说明，不虚构路径。
+- [x] **步骤5：跑本任务及旧读取器/Controller回归。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.EmailChangeRequestControllerTest" --tests "org.example.music.user.controller.ReauthenticationRequestReaderTest" --tests "org.example.music.user.controller.ReauthenticationControllerTest" --tests "org.example.music.user.controller.ReauthenticationEmailRequestControllerTest"`；新415准确，旧端点媒体类型契约不变。检查OpenAPI生成结果，不只核对注释文字。
+- [x] **步骤6：检查并提交。** `git diff --check`，提交 `feat: 暴露本人邮箱变更验证码申请接口`。这一步全绿仍不能宣称接口完成，须任务6真实验证。
 
 ### 任务6：真实链路、并发故障、部署说明与实现送审
 
@@ -157,14 +157,14 @@
 
 最小断言锚点：`should_send_to_new_email_without_writing_account_or_issuing_token()`在真实POST成功后使用`assertEquals(before, jdbc.queryForMap("select * from users where id=?", userId))`及`assertTrue(hasher.matches(sent.code(), activeCodeHash))`；`should_return_unchanged_for_self_under_mysql_collation()`以重音等同但文本不同的合法地址命中本人，断言`jsonPath("$.code").value("EMAIL_UNCHANGED")`。
 
-- [ ] **步骤1：写真实入口成功及失败测试，先运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.EmailChangeRequestIntegrationTest"`。断言近期USER/ADMIN、未绑定首次申请成功，真实邮件地址为规范化新邮箱；校验Redis摘要匹配及原300000ms期限，数据库整行前后相等，Token服务无签发调用，旧/其他Token仍普通有效。伪造userId/邮箱/版本/转发头不改变本人或IP来源。
-- [ ] **步骤2：补齐真实认证/占用交错。** 使用可控Clock签发兼容既有iat/exp的真实Token，验证299秒、300秒、超窗和legacy缺auth_time；近期门禁缺失的旧接口仍可用，旧Token在再次验证成功后仍保留旧时间，新Token可继续。已过期/撤销与REAUTHENTICATION_REQUIRED分开。真实MySQL下使用大小写及重音等同地址对比数据库查询结果，命中自己409未变化、他人409已占用，HTTP拒绝无发信无扣额。
-- [ ] **步骤3：补齐真实状态并发与故障。** 用户/目标/IP共享额度、目标跨账户并发、拒绝无部分扣额；发送失败保留旧ACTIVE，成功换目标替换旧请求。闩锁控制发信中变更账户/占用目标、租约失效、旧清理与新申请交错；spy仅在真实Redis执行后注入回包丢失，不以mock成功伪装执行。覆盖reserve未知、activate未知、迟到SMTP、清理故障；断言故障后用户表不变，结果未知不恢复旧状态。所有任务结束、容器和线程可重复清理。
-- [ ] **步骤4：运行真实链路及Redis测试至全绿。** `cmd /c gradlew.bat test --tests "org.example.music.user.EmailChangeRequestIntegrationTest" --tests "org.example.music.user.EmailChangeRequestStoreIntegrationTest"`，列明实际通过/失败/错误/跳过。若Docker不可用导致跳过，恢复依赖后实跑，不写“通过”。
-- [ ] **步骤5：写部署与操作边界。** 文档写Redis需支持PEXPIRETIME（当前Compose Redis7.4已满足）、单Redis假设及私有命名空间、三层额度非全局总额度、代理remoteAddr瓶颈、独立4槽容量、SMTP各5秒及20秒预算、应用与Redis时钟职责、TLS/发件配置外部化；说明503/超时可能收无效邮件、响应丢失冷却后重发，无生产测试绕过或真实凭据示例。
-- [ ] **步骤6：执行最终基准。** PowerShell设置`$env:MINIO_INTEGRATION_TESTS = "true"`后运行`.\gradlew.bat cleanTest check --console=plain`，强制重跑而非沿用历史UP-TO-DATE结果。聚合build/test-results/test/TEST-*.xml：通过=tests−failures−errors−skipped，分别报告四项及类数；跳过须列类#方法和原因。失败修复后按受影响范围验证并再次完成全量，不能预填1285作为新结果。
-- [ ] **步骤7：检查范围并整理审核材料。** `git diff --check`、`git status --short`（含untracked）、对照基线36cf271的文件和迁移差异；无新增独立接口、无配置/依赖/已执行迁移变化。实现审核材料按AGENTS.md第2/14节列Method/Path、需求权限、行为、全部文件、无迁移、API路径、实际命令及四项数量、基线和curl、默认项/风险、NOTE-001逐项处置；本阶段标明“待Claude独立实现审核”，不填accepted。
-- [ ] **步骤8：提交并等待独立实现审核。** 仅暂存本任务实际文件，提交 `test: 验证邮箱变更申请真实链路与故障边界`；若文档需独立提交用中文消息。实现由Codex完成后交Claude只读审核，不向未授权服务发消息、不自动推送；收到needs_revision先逐项复核，第三轮规则与escalated边界按AGENTS.md执行。
+- [x] **步骤1：写真实入口成功及失败测试，先运行红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.EmailChangeRequestIntegrationTest"`。断言近期USER/ADMIN、未绑定首次申请成功，真实邮件地址为规范化新邮箱；校验Redis摘要匹配及原300000ms期限，数据库整行前后相等，Token服务无签发调用，旧/其他Token仍普通有效。伪造userId/邮箱/版本/转发头不改变本人或IP来源。
+- [x] **步骤2：补齐真实认证/占用交错。** 使用可控Clock签发兼容既有iat/exp的真实Token，验证299秒、300秒、超窗和legacy缺auth_time；近期门禁缺失的旧接口仍可用，旧Token在再次验证成功后仍保留旧时间，新Token可继续。已过期/撤销与REAUTHENTICATION_REQUIRED分开。真实MySQL下使用大小写及重音等同地址对比数据库查询结果，命中自己409未变化、他人409已占用，HTTP拒绝无发信无扣额。
+- [x] **步骤3：补齐真实状态并发与故障。** 用户/目标/IP共享额度、目标跨账户并发、拒绝无部分扣额；发送失败保留旧ACTIVE，成功换目标替换旧请求。闩锁控制发信中变更账户/占用目标、租约失效、旧清理与新申请交错；spy仅在真实Redis执行后注入回包丢失，不以mock成功伪装执行。覆盖reserve未知、activate未知、迟到SMTP、清理故障；断言故障后用户表不变，结果未知不恢复旧状态。所有任务结束、容器和线程可重复清理。
+- [x] **步骤4：运行真实链路及Redis测试至全绿。** `cmd /c gradlew.bat test --tests "org.example.music.user.EmailChangeRequestIntegrationTest" --tests "org.example.music.user.EmailChangeRequestStoreIntegrationTest"`，列明实际通过/失败/错误/跳过。若Docker不可用导致跳过，恢复依赖后实跑，不写“通过”。
+- [x] **步骤5：写部署与操作边界。** 文档写Redis需支持PEXPIRETIME（当前Compose Redis7.4已满足）、单Redis假设及私有命名空间、三层额度非全局总额度、代理remoteAddr瓶颈、独立4槽容量、SMTP各5秒及20秒预算、应用与Redis时钟职责、TLS/发件配置外部化；说明503/超时可能收无效邮件、响应丢失冷却后重发，无生产测试绕过或真实凭据示例。
+- [x] **步骤6：执行最终基准。** PowerShell设置`$env:MINIO_INTEGRATION_TESTS = "true"`后运行`.\gradlew.bat cleanTest check --console=plain`，强制重跑而非沿用历史UP-TO-DATE结果。聚合build/test-results/test/TEST-*.xml：通过=tests−failures−errors−skipped，分别报告四项及类数；跳过须列类#方法和原因。失败修复后按受影响范围验证并再次完成全量，不能预填1285作为新结果。
+- [x] **步骤7：检查范围并整理审核材料。** `git diff --check`、`git status --short`（含untracked）、对照基线36cf271的文件和迁移差异；无新增独立接口、无配置/依赖/已执行迁移变化。实现审核材料按AGENTS.md第2/14节列Method/Path、需求权限、行为、全部文件、无迁移、API路径、实际命令及四项数量、基线和curl、默认项/风险、NOTE-001逐项处置；本阶段标明“待Claude独立实现审核”，不填accepted。
+- [x] **步骤8：提交并等待独立实现审核。** 仅暂存本任务实际文件，提交 `test: 验证邮箱变更申请真实链路与故障边界`；若文档需独立提交用中文消息。实现由Codex完成后交Claude只读审核，不向未授权服务发消息、不自动推送；收到needs_revision先逐项复核，第三轮规则与escalated边界按AGENTS.md执行。
 
 ## 计划自查与交接
 
@@ -172,4 +172,4 @@
 
 已核对各任务使用的类名、record字段、Supplier输入和四个存储操作签名一致；五项Review Focus均有归属测试，暂无未覆盖的设计要求。每个任务按红灯、最小实现、绿灯、范围检查及中文提交执行；不为计划阶段创建空生产类或假实现。
 
-本轮只编写和自查计划、修正文档声明并登记审核处置；未运行新接口测试或构建。请用户审阅本计划是否准确表达需求；批准后按既定Codex唯一实现、Claude独立只读审核方式继续。
+用户已批准计划并授权开始实现。任务1—5已完成红灯、实现及绿灯；任务6最终包含48项真实HTTP链路和29项Redis脚本测试。首轮全量1441/0/0/0后新增编码边界回归，实证3失败并修复；受影响范围87/0/0/0。修复后带MINIO_INTEGRATION_TESTS=true的cleanTest check于代码5d13abb上BUILD SUCCESSFUL（11分15秒），最终1445通过/0失败/0错误/0跳过、114类，其中本接口11类160项。已整理全部50个变更文件及NOTE-001处置并提交验证材料；实现仍待Claude独立审核，不以本地自验代替accepted。
