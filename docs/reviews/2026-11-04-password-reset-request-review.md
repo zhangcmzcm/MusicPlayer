@@ -1,6 +1,6 @@
 # 找回密码申请及异步发码接口实现审核材料
 
-日期：2026-11-05。文档文件名沿用已批准计划日期。阶段：实现与本地全量自验完成，首次独立实现审核材料已准备，尚未获得本接口独立实现审核accepted；不开始重置确认接口，不自动推送。
+日期：2026-11-05。文档文件名沿用已批准计划日期。阶段：第1/3轮独立实现审核已accepted（审核至32a8235），零阻断项；NOTE-003已作等价收尾b564f85，收尾全量验证已通过，处置待复核，不自动推送或开始下一接口。
 
 ## 本次接口与权限
 
@@ -20,7 +20,7 @@
 ## 基线、文档与工程变更
 
 - 分支main，代码基线0705928；设计83bab37、第1/3轮设计审核accepted；计划及建议处置f96668e。
-- 实现提交：b35a2aa、4d86f39、1bca5f8、e57c91c、6f1caa4、43f5952、57280e3；真实链路及最终代码冻结提交6a2881b，后续仅文档。独立实现审核范围为当前main相对0705928的全部本任务变更（含下列完整文件清单）。
+- 实现提交：b35a2aa、4d86f39、1bca5f8、e57c91c、6f1caa4、43f5952、57280e3；首次送审真实链路源代码冻结提交6a2881b，材料提交32a8235；NOTE-003收尾源代码b564f85及其结果另列下文，收尾全量期间后续仅文档。独立实现审核范围为当前main相对0705928的全部本任务变更（含下列完整文件清单）。
 - API：docs/api/user/request-password-reset.md；部署：docs/deployment/password-reset-requests.md。
 - 设计/计划：docs/superpowers/specs/2026-11-04-password-reset-request-design.md、docs/superpowers/plans/2026-11-04-password-reset-request-plan.md。
 - 数据库迁移：无，V1—V8未修改；无新依赖/Compose/Entity/密码策略/JWT/既有生产者脚本变更。SecurityConfig仅追加单POST公开路径，UserRepository仅追加两条最小投影，GlobalExceptionHandler追加专用映射。
@@ -60,7 +60,7 @@ cmd /c gradlew.bat test --tests "org.example.music.user.*PasswordReset*Test" --c
 | PasswordResetTaskProcessorTest | 4 |
 | PasswordResetWorkerLifecycleTest | 1 |
 
-本次最终全量基准已完成，固定对象6a2881b，后续只有文档变更：
+首次送审全量基准已完成，固定对象6a2881b，当时后续只有文档变更；NOTE-003后续验证另列：
 
 ```powershell
 $env:MINIO_INTEGRATION_TESTS = "true"
@@ -77,14 +77,23 @@ $env:MINIO_INTEGRATION_TESTS = "true"
 
 ## 审核反馈复核与处置
 
-首次本接口独立实现审核，不涉及既往实现阻断项；不把设计accepted或前一改邮箱accepted作为本次实现结论。设计审核第1/3轮的两条非阻断意见沿用编号，处置如下，待独立实现核实落地：
+第1/3轮独立实现审核已accepted，独立MINIO_INTEGRATION_TESTS=true cleanTest check为145类1718通过/0失败/0错误/0跳过，退出0、14分27秒。设计NOTE-001/002已被审核方核实关闭；新增NOTE-003为非阻断建议，不改变accepted结论，当前收尾不自行标记审核方已关闭。原编号及分级保留如下：
 
 | 问题编号与原分级 | 问题核实及证据 | 分级判断 | 修改方向判断 | 实际处置 | 验证结果或待复核事项 |
 | --- | --- | --- | --- | --- | --- |
-| NOTE-001 非阻断 | 成立；V1 NO PAD与索引等值查询下，首尾空格历史地址不能匹配trim输入 | 认可，文档口径问题非设计阻断 | 认可，保持索引、不做全表扫描 | 设计§4、API、部署说明已修正；Reader/Store无暗中扩大查询 | 真实MySQL首尾空格/大小写/重音测试定向通过；待独立复核 |
-| NOTE-002 非阻断 | 成立；公开路径不绕过主动Bearer校验 | 认可，表格补全非新增业务限制 | 认可，403只沿用，不制造正常禁止角色 | 设计§8、API/OpenAPI已补401/403与AUTH_STATE_STORE_UNAVAILABLE说明 | 真实无Token202及签名/到期/版本撤销401测试、OpenAPI8响应码定向通过；待独立复核 |
+| NOTE-001 非阻断 | 成立；V1 NO PAD与索引等值查询下，首尾空格历史地址不能匹配trim输入 | 认可，文档口径问题非设计阻断 | 认可，保持索引、不做全表扫描 | 设计§4、API、部署说明已修正；Reader/Store无暗中扩大查询 | 真实MySQL首尾空格/大小写/重音测试通过；本轮独立审核已核实关闭 |
+| NOTE-002 非阻断 | 成立；公开路径不绕过主动Bearer校验 | 认可，表格补全非新增业务限制 | 认可，403只沿用，不制造正常禁止角色 | 设计§8、API/OpenAPI已补401/403与AUTH_STATE_STORE_UNAVAILABLE说明 | 真实无Token202及签名/到期/版本撤销401、OpenAPI8响应码通过；本轮独立审核已核实关闭 |
+| NOTE-003 非阻断（32a8235时Reader:41—53与EmailRules:12—20重复） | 成立；CR/LF/代理、trim+小写、Bean Validation和InternetAddress往返验证同任务内有两份，存在后续漂移风险 | 认可，不影响当前正确性与accepted，非阻断 | 认可，直接委托本任务已有Rules，不改既有其他模块，不引入新抽象 | 已修复待复核；b564f85让Reader注入Rules，两个测试仅适配构造器/依赖导入，原断言不变 | Reader31+Rules1+Controller2共34通过/0失败/0错误/0跳过，退出0；收尾后全量145类1718通过/0失败/0错误/0跳过，退出0，13分52秒 |
 
-当前无关键业务争议。收到独立实现报告按AGENTS.md保留其编号/分级/轮次逐项复核，不自行撤销阻断项。
+当前无关键业务争议，无阻断项。NOTE-003按建议完成等价修正，审核方尚未复核该收尾，不自行写为独立关闭。
+
+### NOTE-003收尾验证
+
+变更仅3文件（均在上方本接口原清单）：Reader删除重复邮箱规则，委托PasswordResetEmailRules.normalize；ReaderTest改注入Rules；ControllerTest补Rules导入。邮箱规则本身、请求/错误/限流/队列/邮件/权限/存储协议未变。没有新增测试来镜像实现，也未删除失败断言。
+
+定向命令：`cmd /c gradlew.bat test --tests "org.example.music.user.controller.PasswordResetRequestReaderTest" --tests "org.example.music.user.domain.PasswordResetEmailRulesTest" --tests "org.example.music.user.controller.PasswordResetRequestControllerTest" --console=plain`，退出0、BUILD SUCCESSFUL，34通过/0失败/0错误/0跳过。
+
+本次收尾最终命令仍为MINIO_INTEGRATION_TESTS=true的`.\gradlew.bat cleanTest check --console=plain`，源代码固定b564f85，已完成：退出0、BUILD SUCCESSFUL（13分52秒），JUnit XML实际聚合145类1718通过/0失败/0错误/0跳过；本接口仍为19类119项，相关3类34项全绿。MySQL、Redis、MinIO均实跑，跳过项无。后续仅更新本文档/计划/设计状态，源代码与测试没有改动。独立accepted的32a8235、旧本地全量6a2881b与本次收尾分开记录，不把旧结果冒充新验证。
 
 ## curl
 

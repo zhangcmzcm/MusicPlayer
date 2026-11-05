@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式已由AGENTS.md确定：Codex唯一实现，Claude独立只读审核；本会话逐任务实施，不派发实现子代理。上述执行子技能未列为可用，不声称调用。用户已于2026-11-05以“开始吧”批准执行；当前业务实现已冻结6a2881b，最终全量145类1718项通过、失败/错误/跳过均0，尚未独立实现审核。
+> 执行方式已由AGENTS.md确定：Codex唯一实现，Claude独立只读审核；本会话逐任务实施，不派发实现子代理。上述执行子技能未列为可用，不声称调用。用户已于2026-11-05以“开始吧”批准执行；原送审业务实现冻结6a2881b，首次全量145类1718项通过、失败/错误/跳过均0，原实现32a8235已获第1/3轮实现审核accepted，NOTE-003收尾b564f85全量已通过（145类1718项，失败/错误/跳过均0）。
 
 **Goal:** 实现唯一公开接口POST /api/v1/users/password-reset-requests，统一202受理，通过有界Redis任务驱动一次异步邮箱发码，成功后激活找回专用验证码。
 
@@ -223,7 +223,7 @@ verify(sender, times(1)).send(any(PasswordResetMessage.class)); // 完成真实�
 - [x] **步骤5：写部署说明。** docs/deployment/password-reset-requests.md固定Redis≥7及单实例/PERSISTENCE条件、TIME/PEXPIREAT/PEXPIRETIME能力、应用/Redis时钟同步，三项环境变量默认/正数、每实例与全局容量区别、有界维护/重启不接管/任务丢失与用户重新申请。NOTE-001如实说明历史空白无自助覆盖，NOTE-002说明主动附带Token的认证链行为；日志traceId及隐私，SMTP未知可能收到死码、激活未知旧码不保证保留，不给生产删键放行命令，不新增Actuator。
 - [x] **步骤6：冻结业务代码并完整回归。** `$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain`，保存退出码与JUnit XML，按tests−failures−errors−skipped统计通过，列类数及新增数；必要MySQL/Redis/MinIO0跳过。失败先定位修复，再做适用定向和所需完整验证，不删断言、不mock持久化成功。全量后只更新文档，若改业务代码须重新验证。
 - [x] **步骤7：检查并提交真实验证与材料。** `git diff --check`、`git status --short`含untracked、相对0705928的文件清单；确认V1—V8和既有脚本无差异、无新依赖/第二端点。分开中文提交测试与审核材料。docs/reviews/2026-11-04-password-reset-request-review.md按AGENTS第2/14节列权限/行为/全部文件/迁移无/API/实际命令与四项数量/基线/curl/风险/默认项；保留本设计轮次与NOTE原编号，设计accepted不作为实现accepted。
-- [ ] **步骤8：交独立实现审核。** Codex不代替Claude结论；needs_revision逐项复核、原编号/分级/轮次，第三轮未通过或escalated依项目规则。未独立accepted不开始重置确认接口，推送遵从用户本任务授权，不挪用前一改邮箱接口推送许可。
+- [x] **步骤8：交独立实现审核。** Codex不代替Claude结论；needs_revision逐项复核、原编号/分级/轮次，第三轮未通过或escalated依项目规则。未独立accepted不开始重置确认接口，推送遵从用户本任务授权，不挪用前一改邮箱接口推送许可。
 
 ## 设计反馈复核与处置
 
@@ -251,6 +251,13 @@ verify(sender, times(1)).send(any(PasswordResetMessage.class)); // 完成真实�
 
 范围内执行调整：增加PasswordResetRedisIntegrationSupport抽象夹具复用真实Redis，不继承具体测试而重复运行用例；Properties增加workerAutoStart默认true并供SmartLifecycle.isAutoStartup使用，测试profile固定false避免旧上下文后台访问已停止容器，真实调度测试仍手动启动两个Lifecycle实跑。测试profile仅追加本功能开关，不弱化任何既有容器条件或认证配置。traceId字符规则与现有TraceIdFilter一致，允许点号，防止合法traceId导致入队503。
 
-NOTE-001/002文档处置已落地至API/部署说明；真实MySQL历史首尾空格/大小写/重音及真实JWT签名/过期/撤销测试已列入任务8。最新定向及全量结果已登记，仍待独立实现审核，不以设计accepted替代。
+NOTE-001/002文档处置已落地至API/部署说明；真实MySQL历史首尾空格/大小写/重音及真实JWT签名/过期/撤销测试已列入任务8。最新定向及全量结果已登记；原实现已获独立审核accepted，具体结论及NOTE-003收尾见下节，不以设计accepted替代。
 
-最终定向补齐后退出0、BUILD SUCCESSFUL（2分1秒），实际XML为19类119通过/0失败/0错误/0跳过。业务与测试固定6a2881b，MINIO_INTEGRATION_TESTS=true的cleanTest check已完成：退出0、BUILD SUCCESSFUL（14分10秒），真实JUnit XML共145类1718通过/0失败/0错误/0跳过，其中新增19类119项；MySQL/Redis/MinIO均未跳过。全量后只有文档，审核材料已整理，步骤8仍待独立审核交接。
+最终定向补齐后退出0、BUILD SUCCESSFUL（2分1秒），实际XML为19类119通过/0失败/0错误/0跳过。业务与测试固定6a2881b，MINIO_INTEGRATION_TESTS=true的cleanTest check已完成：退出0、BUILD SUCCESSFUL（14分10秒），真实JUnit XML共145类1718通过/0失败/0错误/0跳过，其中新增19类119项；MySQL/Redis/MinIO均未跳过。全量后只有文档，审核材料已交独立审核，步骤8已完成，原实现accepted及收尾状态见下节。
+
+
+## 第1/3轮独立实现审核与NOTE-003收尾（2026-11-05）
+
+审核至32a8235，结论accepted，零阻断项；独立全量14分27秒、145类1718通过/0失败/0错误/0跳过，NOTE-001/002已核实关闭。NOTE-003同任务内规范化重复成立、分级及委托Rules方向均认可；b564f85仅改Reader及两个测试依赖接线，原有31 Reader+1 Rules+2 Controller断言不变，34项定向全绿。无关键业务或架构变更，不重置审核轮次。
+
+收尾后的完整MINIO_INTEGRATION_TESTS=true cleanTest check已通过：源代码b564f85，退出0、BUILD SUCCESSFUL（13分52秒），实际JUnit XML145类1718通过/0失败/0错误/0跳过，MySQL/Redis/MinIO均未跳过；NOTE-003为已修复待复核，不自行标记审核方关闭，也不将非阻断建议升级成隐含阻断。详情见同任务审核材料处置表。不自动推送或开始重置确认接口。
