@@ -28,6 +28,7 @@ public class PasswordResetWorkerLifecycle implements SmartLifecycle {
   await(workers);await(maintenance);
  }
  private void await(ExecutorService executor){try{if(!executor.awaitTermination(1,TimeUnit.SECONDS))LOG.warn("Password reset background shutdown still has in-flight work");}catch(InterruptedException failure){Thread.currentThread().interrupt();}}
+ @Override public boolean isAutoStartup(){return properties.isWorkerAutoStart();}
  @Override public boolean isRunning(){return running;}
  private static ThreadFactory threads(String prefix){var ids=new AtomicInteger();return action->{var thread=new Thread(action,prefix+ids.incrementAndGet());thread.setDaemon(true);return thread;};}
 }

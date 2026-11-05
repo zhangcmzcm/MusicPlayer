@@ -57,4 +57,20 @@ class PasswordResetQueueIntegrationTest extends PasswordResetRedisIntegrationSup
   var fresh=next(old);store.enqueue(fresh,2);var newer=store.claim(PasswordResetIdentifiers.generate()).orElseThrow();assertTrue(store.prepare(newer,HASH));store.finish(newer);
   assertEquals(old.challengeDigest(),redis.opsForValue().get(PREFIX+"active:"+old.emailDigest()));assertTrue(redis.hasKey(PREFIX+"challenge:"+old.challengeDigest()));
  }
+ @org.junit.jupiter.params.ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings={"extra","missing","no-ttl","short-ttl","version","hash","phase","email","watermark","pending"})
+ void should_fail_closed_on_damaged_task_without_clearing_it(String damage){
+  var t=task("a@example.com");store.enqueue(t,2);String key=PREFIX+"task:"+t.challengeDigest();
+  switch(damage){
+   case "extra"->redis.opsForHash().put(key,"extra","bad");case "missing"->redis.opsForHash().delete(key,"role");case "no-ttl"->redis.persist(key);case "short-ttl"->redis.expire(key,Duration.ofSeconds(5));
+   case "version"->redis.opsForHash().put(key,"tokenVersion","9223372036854775808");case "hash"->redis.opsForHash().put(key,"codeHash",HASH);case "phase"->redis.opsForHash().put(key,"phase","CLAIMED");case "email"->redis.opsForHash().put(key,"email","other@example.com");
+   case "watermark"->redis.opsForHash().put(PREFIX+"latest:"+t.emailDigest(),"admittedAt","01");case "pending"->{redis.delete(PREFIX+"pending:"+t.emailDigest());redis.opsForHash().put(PREFIX+"pending:"+t.emailDigest(),"bad","bad");}
+  }
+  assertThrows(PasswordResetRequestUnavailableException.class,()->store.claim(PasswordResetIdentifiers.generate()));assertTrue(redis.hasKey(key));
+ }
+ @Test void should_reject_corrupt_previous_active_without_replacing_it(){
+  var t=task("a@example.com");store.enqueue(t,2);var c=store.claim(PasswordResetIdentifiers.generate()).orElseThrow();store.prepare(c,HASH);store.activate(c);
+  var n=next(t);store.enqueue(n,2);var next=store.claim(PasswordResetIdentifiers.generate()).orElseThrow();store.prepare(next,HASH);
+  redis.opsForHash().put(PREFIX+"challenge:"+t.challengeDigest(),"role","UNKNOWN");assertThrows(PasswordResetRequestUnavailableException.class,()->store.activate(next));
+  assertEquals(t.challengeDigest(),redis.opsForValue().get(PREFIX+"active:"+t.emailDigest()));
+ }
 }

@@ -7,7 +7,7 @@ local c=current(h,now);if c==nil then return {2} elseif not c then return {1} en
 local old=pointer(P..'active:'..h.emailDigest,now);if old==false then return {2} end
 if old then
  local a=hash(P..'challenge:'..old,{[12]=true})
- if not a or not exact(a,{'schema','digest','emailDigest','email','admittedAt','expiresAt','userId','rawEmail','role','tokenVersion','codeHash','attempts'}) or a.schema~='1' or a.digest~=old or a.emailDigest~=h.emailDigest or not bcrypt(a.codeHash) or not canonical(a.attempts,'4') or not canonical(a.tokenVersion,'9223372036854775807') or not millis(a.expiresAt) or redis.call('PEXPIRETIME',P..'challenge:'..old)~=tonumber(a.expiresAt) then return {2} end
+ if not a or not exact(a,{'schema','digest','emailDigest','email','admittedAt','expiresAt','userId','rawEmail','role','tokenVersion','codeHash','attempts'}) or a.schema~='1' or a.digest~=old or a.emailDigest~=h.emailDigest or not bcrypt(a.codeHash) or not canonical(a.attempts,'4') or not canonical(a.tokenVersion,'9223372036854775807') or not canonical(a.userId,'2147483647') or a.userId=='0' or not address(a.email,false) or a.email~=h.email or not address(a.rawEmail,false) or (a.role~='USER' and a.role~='ADMIN') or not millis(a.admittedAt) or not millis(a.expiresAt) or tonumber(a.admittedAt)>now or tonumber(a.expiresAt)-tonumber(a.admittedAt)~=300000 or redis.call('PEXPIRETIME',P..'challenge:'..old)~=tonumber(a.expiresAt) or redis.call('PEXPIRETIME',P..'active:'..h.emailDigest)~=tonumber(a.expiresAt) then return {2} end
 end
 local key=P..'challenge:'..h.digest
 if redis.call('EXISTS',key)~=0 then return {2} end

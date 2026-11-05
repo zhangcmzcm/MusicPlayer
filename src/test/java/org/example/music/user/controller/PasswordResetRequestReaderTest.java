@@ -50,4 +50,8 @@ class PasswordResetRequestReaderTest {
         assertThrows(PasswordResetValidationException.class,
                 () -> reader.read(request("{\"email\":\"" + escape + "@example.com\"}")));
     }
+    @Test void should_reject_duplicate_field_after_json_escape_decoding() {
+        String escaped="\\u0065mail";
+        assertThrows(PasswordResetValidationException.class, () -> reader.read(request("{\"email\":\"a@b.com\",\""+escaped+"\":\"a@b.com\"}")));
+    }
 }

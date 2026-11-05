@@ -6,6 +6,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 @Component @Validated @ConfigurationProperties("app.password-reset")
 public class PasswordResetProperties {
+ private boolean workerAutoStart=true;
+ public boolean isWorkerAutoStart(){return workerAutoStart;}
+ public void setWorkerAutoStart(boolean value){workerAutoStart=value;}
  @Min(1) private int queueCapacity=1000;
  @Min(1) private int workerConcurrency=4;
  @NotNull private Duration sendTimeout=Duration.ofSeconds(20);
