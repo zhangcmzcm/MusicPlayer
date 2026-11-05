@@ -11,14 +11,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.*;
 @Testcontainers @EnabledIfDockerAvailable
-class PasswordResetAdmissionIntegrationTest {
- @Container static final GenericContainer<?> REDIS=new GenericContainer<>("redis:8.10.2").withExposedPorts(6379);
- static LettuceConnectionFactory connection;static StringRedisTemplate redis;static PasswordResetRequestStore store;
- static final String PREFIX="music:auth:password-reset:";
- @BeforeAll static void connect(){connection=new LettuceConnectionFactory(REDIS.getHost(),REDIS.getMappedPort(6379));connection.afterPropertiesSet();connection.start();redis=new StringRedisTemplate(connection);store=new PasswordResetRequestStore(redis);}
- @AfterAll static void close(){if(connection!=null)connection.destroy();}
- @BeforeEach void clean(){var keys=redis.keys(PREFIX+"*");if(keys!=null&&!keys.isEmpty())redis.delete(keys);}
- static String digest(String s){return PasswordResetIdentifiers.digest(s);}
+class PasswordResetAdmissionIntegrationTest extends PasswordResetRedisIntegrationSupport {
  @Test void should_limit_email_and_preserve_all_counts_and_ttls_on_rejection(){
   String email=digest("alice@example.com"),ip=digest("127.0.0.1");var a=store.admit(email,ip);
   assertEquals(Duration.ofSeconds(300),Duration.between(a.admittedAt(),a.expiresAt()));
