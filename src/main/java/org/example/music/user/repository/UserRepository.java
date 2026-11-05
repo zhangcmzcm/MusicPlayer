@@ -18,6 +18,13 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
 
+    @Query("select new org.example.music.user.domain.PasswordResetAccountSnapshot(u.id,u.email,u.userRole,u.tokenVersion) from UserEntity u where u.email = :email")
+    Optional<org.example.music.user.domain.PasswordResetAccountSnapshot> findPasswordResetSnapshotByEmail(@Param("email") String email);
+
+    @Query("select new org.example.music.user.domain.PasswordResetAccountSnapshot(u.id,u.email,u.userRole,u.tokenVersion) from UserEntity u where u.id = :userId")
+    Optional<org.example.music.user.domain.PasswordResetAccountSnapshot> findPasswordResetSnapshotById(@Param("userId") Integer userId);
+
+
     @Modifying(clearAutomatically = true)
     @Query(value = "UPDATE users SET email = :newEmail, token_version = token_version + 1, updated_at = UTC_TIMESTAMP(6) "
             + "WHERE id = :userId AND (CAST(email AS BINARY) <=> CAST(:previousEmail AS BINARY)) "
