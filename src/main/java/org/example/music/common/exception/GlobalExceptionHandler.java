@@ -2,6 +2,11 @@ package org.example.music.common.exception;
 
 import org.example.music.user.exception.EmailChangeValidationException;
 import org.example.music.user.exception.EmailChangeUnsupportedMediaTypeException;
+import org.example.music.user.exception.PasswordResetValidationException;
+import org.example.music.user.exception.PasswordResetUnsupportedMediaTypeException;
+import org.example.music.user.exception.PasswordResetRequestRateLimitedException;
+import org.example.music.user.exception.PasswordResetRequestUnavailableException;
+import org.example.music.user.exception.PasswordResetDiagnostics;
 import org.example.music.user.exception.ReauthenticationRequiredException;
 import org.example.music.user.exception.EmailUnchangedException;
 import org.example.music.user.exception.EmailChangeEmailAlreadyExistsException;
@@ -106,6 +111,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(PasswordResetValidationException.class)
+    public ResponseEntity<ProblemDetail> handlePasswordResetValidation(PasswordResetValidationException exception,HttpServletRequest request){
+        return ResponseEntity.badRequest().cacheControl(org.springframework.http.CacheControl.noStore()).body(problem(request,HttpStatus.BAD_REQUEST,"VALIDATION_FAILED","找回密码申请未完成",exception.getMessage()));
+    }
+    @ExceptionHandler(PasswordResetUnsupportedMediaTypeException.class)
+    public ResponseEntity<ProblemDetail> handlePasswordResetMediaType(PasswordResetUnsupportedMediaTypeException exception,HttpServletRequest request){
+        return ResponseEntity.status(415).cacheControl(org.springframework.http.CacheControl.noStore()).body(problem(request,HttpStatus.UNSUPPORTED_MEDIA_TYPE,"UNSUPPORTED_MEDIA_TYPE","找回密码申请未完成",exception.getMessage()));
+    }
+    @ExceptionHandler(PasswordResetRequestRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handlePasswordResetRateLimited(PasswordResetRequestRateLimitedException exception,HttpServletRequest request){
+        return ResponseEntity.status(429).cacheControl(org.springframework.http.CacheControl.noStore()).header(HttpHeaders.RETRY_AFTER,Long.toString(exception.retryAfterSeconds())).body(problem(request,HttpStatus.TOO_MANY_REQUESTS,"PASSWORD_RESET_REQUEST_RATE_LIMITED","找回密码申请过于频繁",exception.getMessage()));
+    }
+    @ExceptionHandler(PasswordResetRequestUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handlePasswordResetUnavailable(PasswordResetRequestUnavailableException exception,HttpServletRequest request){
+        LOGGER.warn("Password reset request unavailable, traceId={}",MDC.get("traceId"),PasswordResetDiagnostics.sanitized(exception));
+        return ResponseEntity.status(503).cacheControl(org.springframework.http.CacheControl.noStore()).body(problem(request,HttpStatus.SERVICE_UNAVAILABLE,"PASSWORD_RESET_REQUEST_UNAVAILABLE","找回密码申请未完成",exception.getMessage()));
+    }
 
     @ExceptionHandler(EmailChangeVerificationFailedException.class)
     public ResponseEntity<ProblemDetail> handleEmailChangeVerificationFailed(EmailChangeVerificationFailedException exception, HttpServletRequest request) {

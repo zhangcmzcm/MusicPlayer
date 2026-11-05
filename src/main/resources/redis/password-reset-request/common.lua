@@ -70,7 +70,7 @@ end
 local function task(key,now)
  local h=hash(key,{[15]=true});if not h then return h end
  if not exact(h,task_names) or h.schema~='1' or not digest(h.digest) or not digest(h.emailDigest) or not address(h.email,false)
-  or #h.traceId>128 or not string.match(h.traceId,'^[A-Za-z0-9_-]*$') then return false end
+  or #h.traceId<1 or #h.traceId>64 or not string.match(h.traceId,'^[A-Za-z0-9._-]+$') then return false end
  local first,last=millis(h.admittedAt),millis(h.expiresAt)
  if not first or not last or first>now or last-first~=300000 or last<=now or redis.call('PEXPIRETIME',key)~=last then return false end
  if h.accountPresent=='1' then
@@ -92,7 +92,7 @@ end
 local function arguments(now)
  if #ARGV<11 or not digest(ARGV[1]) or not digest(ARGV[2]) or not address(ARGV[3],false) then return false end
  local first,last=millis(ARGV[4]),millis(ARGV[5])
- if not first or not last or first>now or last-first~=300000 or #ARGV[11]>128 or not string.match(ARGV[11],'^[A-Za-z0-9_-]*$') then return false end
+ if not first or not last or first>now or last-first~=300000 or #ARGV[11]<1 or #ARGV[11]>64 or not string.match(ARGV[11],'^[A-Za-z0-9._-]+$') then return false end
  if ARGV[6]=='1' then return canonical(ARGV[7],'2147483647') and ARGV[7]~='0' and address(ARGV[8],false) and (ARGV[9]=='USER' or ARGV[9]=='ADMIN') and canonical(ARGV[10],'9223372036854775807') end
  return ARGV[6]=='0' and ARGV[7]=='' and ARGV[8]=='' and ARGV[9]=='' and ARGV[10]==''
 end

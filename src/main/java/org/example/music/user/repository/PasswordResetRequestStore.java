@@ -82,7 +82,7 @@ public class PasswordResetRequestStore {
    if(task==null||!PasswordResetIdentifiers.isCanonicalDigest(task.challengeDigest())||!PasswordResetIdentifiers.isCanonicalDigest(task.emailDigest())
     ||task.email()==null||task.email().isBlank()||task.email().length()>120||task.email().indexOf('\r')>=0||task.email().indexOf('\n')>=0
     ||!PasswordResetIdentifiers.digest(task.email()).equals(task.emailDigest())||task.admission()==null||task.account()==null
-    ||task.traceId()==null||!task.traceId().matches("[A-Za-z0-9_-]{0,128}"))throw unavailable();
+    ||task.traceId()==null||!task.traceId().matches("[A-Za-z0-9._-]{1,64}"))throw unavailable();
    long first=task.admission().admittedAt().toEpochMilli(),last=task.admission().expiresAt().toEpochMilli();
    if(first<0||first>9007199254440991L||last!=first+300000)throw unavailable();
    var a=task.account().orElse(null);
