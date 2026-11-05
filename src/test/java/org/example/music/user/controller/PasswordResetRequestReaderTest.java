@@ -13,7 +13,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 
 class PasswordResetRequestReaderTest {
     static final ValidatorFactory FACTORY = Validation.buildDefaultValidatorFactory();
-    final PasswordResetRequestReader reader = new PasswordResetRequestReader(FACTORY.getValidator());
+    final PasswordResetRequestReader reader = new PasswordResetRequestReader(new org.example.music.user.domain.PasswordResetEmailRules(FACTORY.getValidator()));
     @AfterAll static void close() { FACTORY.close(); }
     MockHttpServletRequest request(String body) {
         var request = new MockHttpServletRequest(); request.setContentType("application/json");

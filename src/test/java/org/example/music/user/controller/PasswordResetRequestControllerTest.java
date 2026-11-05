@@ -17,7 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(PasswordResetRequestController.class)
-@Import({SecurityConfig.class,ClientIpResolver.class,PasswordResetRequestReader.class}) @ActiveProfiles("test")
+@Import({SecurityConfig.class,ClientIpResolver.class,PasswordResetRequestReader.class,org.example.music.user.domain.PasswordResetEmailRules.class}) @ActiveProfiles("test")
 class PasswordResetRequestControllerTest {
  static final String PATH="/api/v1/users/password-reset-requests",BODY="{\"email\":\" Alice@Example.com \"}";
  @Autowired MockMvc mvc;@MockitoBean PasswordResetRequestService service;@MockitoBean UserAuthorizationStateService authorizationState;
