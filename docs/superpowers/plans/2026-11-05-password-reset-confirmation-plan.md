@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿用AGENTS.md：Codex本会话唯一实现，Claude独立只读审核，不派发实现子代理。上述执行子技能未列为可用，不声称已调用。当前仅编写计划，用户审阅确认后才实施。
+> 执行方式沿用AGENTS.md：Codex本会话唯一实现，Claude独立只读审核，不派发实现子代理。上述执行子技能未列为可用，不声称已调用。用户已于2026-11-06确认开始，Codex按本计划实施，最终版本e2909bd完整验证已通过，待独立实现审核。
 
 **Goal:** 实现唯一公开POST /api/v1/users/password-resets，验证既有找回申请后一次性消费验证码、条件更新密码及认证版本，204成功并撤销目标账户全部旧登录。
 
@@ -67,11 +67,11 @@ record PasswordResetConfirmationRequest(String challengeId, String code, String 
 
 **Interfaces:** Reader注入Validator，`PasswordResetConfirmationRequest read(HttpServletRequest)`；Rules注入既有EmailRules，`void validateChallenge(PasswordResetChallengeSnapshot)`、`boolean matches(PasswordResetChallengeSnapshot, PasswordResetAccountSnapshot)`、`void requirePasswordHash(String)`。RateLimited暴露`long retryAfterSeconds()`，Unavailable以既有Diagnostics.sanitized包装cause。VerificationFailed固定统一文案；无账户限流专用对外异常。
 
-- [ ] **步骤1：写失败测试。** `should_preserve_code_zero_and_password_spaces()`、`should_accept_8_and_72_printable_ascii_but_reject_blank_or_unicode()`、`should_reject_duplicate_escaped_fields_noncanonical_id_and_extra_root()`、`should_enforce_16384_byte_budget_and_utf8_json()`；断言密码原值`assertEquals("  new-pass  ", result.newPassword())`，标识末位非规范但长度合法仍抛Validation；16384通过/16385拒绝。Rules验证摘要与邮箱关系、attempts 0—4、raw/规范化邮箱、角色/版本及脱敏toString；`assertFalse(rules.matches(challenge, changedVersion))`。
-- [ ] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.PasswordResetConfirmationRequestReaderTest" --tests "org.example.music.user.domain.PasswordResetConfirmationRulesTest" --console=plain`，期望缺实现编译失败。
-- [ ] **步骤3：实现Reader/DTO/Rules/异常。** 三属性Bean Validation，code/newPassword为WRITE_ONLY Schema；复用Identifiers.isCanonicalDigest作格式/重编码检查；Rules不重复邮箱算法。账户缺行/邮箱解绑/合法版本或角色变化为不匹配，字段非法/摘要坏为Unavailable；BCrypt允许现有2a/2b/2y、60字符、成本4—31。原始raw邮箱不normalize覆盖，版本不经double。Reader只解析，拒绝异常不回显正文。
-- [ ] **步骤4：同命令全绿。** 密码7/73、控制字符、中文/emoji/孤立代理，码数字类型/Unicode数字、缺/未知字段（含email/userId/confirmPassword），非法媒体类型415均覆盖；日志异常不含秘密，不写只为镜像实现的测试。
-- [ ] **步骤5：检查并提交。** `git diff --check`，中文提交`feat: 增加密码重置确认严格请求与绑定规则`，仅暂存本任务文件。
+- [x] **步骤1：写失败测试。** `should_preserve_code_zero_and_password_spaces()`、`should_accept_8_and_72_printable_ascii_but_reject_blank_or_unicode()`、`should_reject_duplicate_escaped_fields_noncanonical_id_and_extra_root()`、`should_enforce_16384_byte_budget_and_utf8_json()`；断言密码原值`assertEquals("  new-pass  ", result.newPassword())`，标识末位非规范但长度合法仍抛Validation；16384通过/16385拒绝。Rules验证摘要与邮箱关系、attempts 0—4、raw/规范化邮箱、角色/版本及脱敏toString；`assertFalse(rules.matches(challenge, changedVersion))`。
+- [x] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.PasswordResetConfirmationRequestReaderTest" --tests "org.example.music.user.domain.PasswordResetConfirmationRulesTest" --console=plain`，期望缺实现编译失败。
+- [x] **步骤3：实现Reader/DTO/Rules/异常。** 三属性Bean Validation，code/newPassword为WRITE_ONLY Schema；复用Identifiers.isCanonicalDigest作格式/重编码检查；Rules不重复邮箱算法。账户缺行/邮箱解绑/合法版本或角色变化为不匹配，字段非法/摘要坏为Unavailable；BCrypt允许现有2a/2b/2y、60字符、成本4—31。原始raw邮箱不normalize覆盖，版本不经double。Reader只解析，拒绝异常不回显正文。
+- [x] **步骤4：同命令全绿。** 密码7/73、控制字符、中文/emoji/孤立代理，码数字类型/Unicode数字、缺/未知字段（含email/userId/confirmPassword），非法媒体类型415均覆盖；日志异常不含秘密，不写只为镜像实现的测试。
+- [x] **步骤5：检查并提交。** `git diff --check`，中文提交`feat: 增加密码重置确认严格请求与绑定规则`，仅暂存本任务文件。
 
 ### 任务2：独立额度与原子读/计错/消费协议
 
@@ -83,12 +83,12 @@ record PasswordResetConfirmationRequest(String challengeId, String code, String 
 
 fail/consume的ARGV固定10项：digest/emailDigest/email/admittedAtMs/expiresAtMs/userId/rawEmail/role/tokenVersion/codeHash，不含旧attempts；KEYS为本challenge与对应ACTIVE，schema恒1。回包`[0]`成功、`[1]`旧归属/失效、`[2]`损坏；fail的0只表示本次计错成功，不把错误次数外泄。所有回复长度/类型/规范值Java二次检查。专用common自行支持900秒计数，不修改生产者common；可只读借鉴现有原语，不拼入含任务维护逻辑的大段脚本。
 
-- [ ] **步骤1：写失败测试。** `should_limit_ip_to_ten_per_60_seconds_and_account_to_ten_per_900_seconds()`、`should_return_false_for_account_limit_without_rate_limited_exception()`、`should_keep_original_expiry_on_rejection()`。真实Redis断言第11次IP抛RateLimited且PTTL不延；`assertFalse(store.admitAccount(userId))`且计数仍10；Long.MAX_VALUE版本从生产者ACTIVATION读取仍原字符串。错类型/额外字段/缺TTL/未知回复503不清键。
-- [ ] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.repository.PasswordResetConfirmationStoreTest" --tests "org.example.music.user.PasswordResetConfirmationStoreIntegrationTest" --console=plain`，期望缺Store；容器用真实Redis8.10.2与既有生产者Store准备ACTIVE，不用mock生产者写成功。
-- [ ] **步骤3：实现额度与read。** 先检验类型/全部字段再写，计数不退款/不续窗；ACTIVE与challenge均核对原deadline及PEXPIRETIME，emailDigest=SHA256规范邮箱，raw邮箱规范化等于email，版本保留十进制。正常不存在/过期/替换返回empty，活跃键矛盾/损坏503，不读取任务/伪造账户。
-- [ ] **步骤4：实现fail/consume。** 对完整不可变字段及当前指针CAS，1—4错HINCRBY不改TTL，第5错原子删除本challenge和匹配ACTIVE；consume要求当前attempts<5且期限有效，最多一次删除两键。失配不动新challenge/pending/latest/ready/outstanding或任何quota，读到attempts0后变1仍可消费。
-- [ ] **步骤5：并发/损坏全绿。** `should_consume_once_across_two_store_instances()`、`should_allow_correct_consume_after_nonterminal_failure()`、`should_reject_correct_after_fifth_failure()`、`should_not_touch_new_active_when_old_failure_or_consume_arrives()`。还覆盖同码不同digest、原TTL、没有ACTIVE的任务不能兑换、记录/指针半损坏503、假回复与命令执行后丢回复不自动重试。另以结构合法、接近到期的旧账户窗口夹具验证：拒绝不续窗、按原PEXPIREAT自然过期后可重新准入且count=1；以有界定时闩锁等待已知期限，不修改生产窗口算法、不用sleep猜竞态。用闩锁控制，不sleep猜顺序。
-- [ ] **步骤6：检查并提交。** `feat: 增加密码重置确认限流与一次性消费`，生产者脚本和12字段schema零变更。
+- [x] **步骤1：写失败测试。** `should_limit_ip_to_ten_per_60_seconds_and_account_to_ten_per_900_seconds()`、`should_return_false_for_account_limit_without_rate_limited_exception()`、`should_keep_original_expiry_on_rejection()`。真实Redis断言第11次IP抛RateLimited且PTTL不延；`assertFalse(store.admitAccount(userId))`且计数仍10；Long.MAX_VALUE版本从生产者ACTIVATION读取仍原字符串。错类型/额外字段/缺TTL/未知回复503不清键。
+- [x] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.repository.PasswordResetConfirmationStoreTest" --tests "org.example.music.user.PasswordResetConfirmationStoreIntegrationTest" --console=plain`，期望缺Store；容器用真实Redis8.10.2与既有生产者Store准备ACTIVE，不用mock生产者写成功。
+- [x] **步骤3：实现额度与read。** 先检验类型/全部字段再写，计数不退款/不续窗；ACTIVE与challenge均核对原deadline及PEXPIRETIME，emailDigest=SHA256规范邮箱，raw邮箱规范化等于email，版本保留十进制。正常不存在/过期/替换返回empty，活跃键矛盾/损坏503，不读取任务/伪造账户。
+- [x] **步骤4：实现fail/consume。** 对完整不可变字段及当前指针CAS，1—4错HINCRBY不改TTL，第5错原子删除本challenge和匹配ACTIVE；consume要求当前attempts<5且期限有效，最多一次删除两键。失配不动新challenge/pending/latest/ready/outstanding或任何quota，读到attempts0后变1仍可消费。
+- [x] **步骤5：并发/损坏全绿。** `should_consume_once_across_two_store_instances()`、`should_allow_correct_consume_after_nonterminal_failure()`、`should_reject_correct_after_fifth_failure()`、`should_not_touch_new_active_when_old_failure_or_consume_arrives()`。还覆盖同码不同digest、原TTL、没有ACTIVE的任务不能兑换、记录/指针半损坏503、假回复与命令执行后丢回复不自动重试。另以结构合法、接近到期的旧账户窗口夹具验证：拒绝不续窗、按原PEXPIREAT自然过期后可重新准入且count=1；以有界定时闩锁等待已知期限，不修改生产窗口算法、不用sleep猜竞态。用闩锁控制，不sleep猜顺序。
+- [x] **步骤6：检查并提交。** `feat: 增加密码重置确认限流与一次性消费`，生产者脚本和12字段schema零变更。
 
 ### 任务3：短只读快照与条件改密事务
 
@@ -96,12 +96,12 @@ fail/consume的ARGV固定10项：digest/emailDigest/email/admittedAtMs/expiresAt
 
 **Interfaces:** Reader注入Repository/PlatformTransactionManager/Rules，`boolean isCurrent(PasswordResetChallengeSnapshot)`（复用findPasswordResetSnapshotById，不读密码）、`Optional<PasswordResetPreparedSnapshot> prepare(PasswordResetChallengeSnapshot)`；Repo新增`Optional<PasswordResetPreparedSnapshot> findPasswordResetPreparedSnapshot(Integer userId)`及`int resetPasswordIfSnapshotMatches(Integer userId, String previousEmail, String previousRole, String previousHash, long expectedVersion, String newHash)`，全部@Param；事务Service仅注入Repo/Manager，`void update(PasswordResetPreparedSnapshot expected, String newHash)`，不接收Actor/Session。
 
-- [ ] **步骤1：写失败测试。** `should_preserve_raw_email_and_hash_in_prepared_snapshot()`，`assertEquals("ALICE@example.com", prepared.rawEmail())`；`should_map_missing_or_changed_binding_to_empty_without_rebinding()`；DB开始/读完成失败Unavailable；坏hash不误作同密码检查false。真实MySQL `should_update_only_hash_version_and_utc_timestamp()`、`should_reject_binary_email_role_hash_or_version_change()`，更新前后按列核对用户名/邮箱/角色/创建/登录时间不变。
-- [ ] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.service.PasswordResetConfirmationSnapshotReaderTest" --tests "org.example.music.user.service.PasswordResetConfirmationTransactionServiceTest" --tests "org.example.music.user.PasswordResetConfirmationTransactionIntegrationTest" --console=plain`，真实MySQL8.4，禁止H2。
-- [ ] **步骤3：实现Reader及Repo。** 两次只读TransactionTemplate外侧覆盖启动/读取/结束错误；prepare将Prepared的userId/rawEmail/role/tokenVersion构造为既有AccountSnapshot交Rules.matches复核，绑定符合才验hash，不改变prepared。新原生SQL：ID、`(CAST(email AS BINARY) <=> CAST(:previousEmail AS BINARY))`、`CAST(user_role AS BINARY)=CAST(:previousRole AS BINARY)`、`CAST(password_token AS BINARY)=CAST(:previousHash AS BINARY)`、token_version=:expectedVersion及<9223372036854775807；SET password_token、token_version+1、updated_at=UTC_TIMESTAMP(6)，@Modifying(clearAutomatically=true)。不修改旧改密CAS签名，不save Entity。
-- [ ] **步骤4：实现事务Service。** 写事务只执行一次CAS，1行提交、0行抛统一VerificationFailed，无诊断回读/重试；非1/0安全IllegalStateException并回滚。DataAccessException/TransactionException在事务外Unavailable，MAX防御拒绝，不碰Redis/BCrypt。Service层会在消费前先检查MAX，此处是额外防御。
-- [ ] **步骤5：同命令全绿。** 真实binary大小写变化/角色/摘要/版本/删除CAS0，非目标账户不变；并发仅改名仍成功且新名保留；MAX无溢出，真实SQL后回滚整行不变、真实commit后抛TransactionSystemException为Unavailable但行已更新。通过实际事务manager故障夹具，不对Spring Data抽象查询callRealMethod冒充真实SQL。
-- [ ] **步骤6：检查并提交。** `feat: 增加密码重置快照与条件事务更新`。
+- [x] **步骤1：写失败测试。** `should_preserve_raw_email_and_hash_in_prepared_snapshot()`，`assertEquals("ALICE@example.com", prepared.rawEmail())`；`should_map_missing_or_changed_binding_to_empty_without_rebinding()`；DB开始/读完成失败Unavailable；坏hash不误作同密码检查false。真实MySQL `should_update_only_hash_version_and_utc_timestamp()`、`should_reject_binary_email_role_hash_or_version_change()`，更新前后按列核对用户名/邮箱/角色/创建/登录时间不变。
+- [x] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.service.PasswordResetConfirmationSnapshotReaderTest" --tests "org.example.music.user.service.PasswordResetConfirmationTransactionServiceTest" --tests "org.example.music.user.PasswordResetConfirmationTransactionIntegrationTest" --console=plain`，真实MySQL8.4，禁止H2。
+- [x] **步骤3：实现Reader及Repo。** 两次只读TransactionTemplate外侧覆盖启动/读取/结束错误；prepare将Prepared的userId/rawEmail/role/tokenVersion构造为既有AccountSnapshot交Rules.matches复核，绑定符合才验hash，不改变prepared。新原生SQL：ID、`(CAST(email AS BINARY) <=> CAST(:previousEmail AS BINARY))`、`CAST(user_role AS BINARY)=CAST(:previousRole AS BINARY)`、`CAST(password_token AS BINARY)=CAST(:previousHash AS BINARY)`、token_version=:expectedVersion及<9223372036854775807；SET password_token、token_version+1、updated_at=UTC_TIMESTAMP(6)，@Modifying(clearAutomatically=true)。不修改旧改密CAS签名，不save Entity。
+- [x] **步骤4：实现事务Service。** 写事务只执行一次CAS，1行提交、0行抛统一VerificationFailed，无诊断回读/重试；非1/0安全IllegalStateException并回滚。DataAccessException/TransactionException在事务外Unavailable，MAX防御拒绝，不碰Redis/BCrypt。Service层会在消费前先检查MAX，此处是额外防御。
+- [x] **步骤5：同命令全绿。** 真实binary大小写变化/角色/摘要/版本/删除CAS0，非目标账户不变；并发仅改名仍成功且新名保留；MAX无溢出，真实SQL后回滚整行不变、真实commit后抛TransactionSystemException为Unavailable但行已更新。通过实际事务manager故障夹具，不对Spring Data抽象查询callRealMethod冒充真实SQL。
+- [x] **步骤6：检查并提交。** `feat: 增加密码重置快照与条件事务更新`。
 
 ### 任务4：同成本伪比较及重置协调
 
@@ -109,11 +109,11 @@ fail/consume的ARGV固定10项：digest/emailDigest/email/admittedAtMs/expiresAt
 
 **Interfaces:** Verifier注入既有PasswordHasher及Rules，初始化`hasher.hash(PasswordResetIdentifiers.generate())`为私有内存dummyHash，经Rules验证；`boolean matches(String code, String encoded)`真实比较；`void reject(String code)`始终抛VerificationFailed，只做一次hasher.matches(code,dummyHash)并忽略返回值，异常转Unavailable。Service注入Store/Reader/Rules/Verifier/Hasher/TransactionService，`void reset(PasswordResetConfirmationRequest request, String clientIp)`。构造器无额外配置/硬编码伪密码。
 
-- [ ] **步骤1：写失败测试。** `should_reject_even_when_dummy_comparison_returns_true()`，`assertThrows(PasswordResetVerificationFailedException.class, () -> verifier.reject("012345"))`；清除初始化hash调用记录后验证每次reject只有一次matches、零真实消费。`should_apply_one_comparison_for_absent_challenge_account_denial_or_stale_binding()`；IP429/503零伪比较，真实错码不额外reject。`should_keep_code_when_password_is_equivalent_or_hashing_fails_or_version_is_max()`；`should_not_enter_write_transaction_when_consume_is_unknown_or_false()`。
-- [ ] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.service.PasswordResetCodeVerifierTest" --tests "org.example.music.user.service.PasswordResetConfirmationServiceTest" --console=plain`。
-- [ ] **步骤3：实现明确顺序。** IP→read，empty调用reject；账户false调用reject；isCurrent false调用reject；真实code比较false调用recordFailure后直接抛VerificationFailed，不再reject；prepare empty直接统一失败（已通过code）；新密码matches旧hash则抛既有NewPasswordSameAsOldException；MAX拒绝；hash新密码并验证生成摘要；consume false直接统一失败，明确true才updater.update(prepared,newHash)。不在通用catch里盲目reject，避免重复BCrypt；已获验证码证明后的密码运算不补伪比较。
-- [ ] **步骤4：单测同命令全绿。** inOrder锁定准入/绑定/比较/prepare/新摘要/消费/更新；所有早退零更新；账户拒绝400且无RateLimited、无计错或消费；等价密码保留原码、坏新摘要不提前消费；消费后updater异常不恢复、不退款、不重试。hash/matches未知异常链脱敏，DTO/快照不泄密。Verifier用真实BCrypt另验dummy成本与生产者同源、并发安全，不写时钟性能断言代替调用/状态证据。
-- [ ] **步骤5：检查并提交。** `feat: 协调密码重置确认与统一失败比较`。
+- [x] **步骤1：写失败测试。** `should_reject_even_when_dummy_comparison_returns_true()`，`assertThrows(PasswordResetVerificationFailedException.class, () -> verifier.reject("012345"))`；清除初始化hash调用记录后验证每次reject只有一次matches、零真实消费。`should_apply_one_comparison_for_absent_challenge_account_denial_or_stale_binding()`；IP429/503零伪比较，真实错码不额外reject。`should_keep_code_when_password_is_equivalent_or_hashing_fails_or_version_is_max()`；`should_not_enter_write_transaction_when_consume_is_unknown_or_false()`。
+- [x] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.service.PasswordResetCodeVerifierTest" --tests "org.example.music.user.service.PasswordResetConfirmationServiceTest" --console=plain`。
+- [x] **步骤3：实现明确顺序。** IP→read，empty调用reject；账户false调用reject；isCurrent false调用reject；真实code比较false调用recordFailure后直接抛VerificationFailed，不再reject；prepare empty直接统一失败（已通过code）；新密码matches旧hash则抛既有NewPasswordSameAsOldException；MAX拒绝；hash新密码并验证生成摘要；consume false直接统一失败，明确true才updater.update(prepared,newHash)。不在通用catch里盲目reject，避免重复BCrypt；已获验证码证明后的密码运算不补伪比较。
+- [x] **步骤4：单测同命令全绿。** inOrder锁定准入/绑定/比较/prepare/新摘要/消费/更新；所有早退零更新；账户拒绝400且无RateLimited、无计错或消费；等价密码保留原码、坏新摘要不提前消费；消费后updater异常不恢复、不退款、不重试。hash/matches未知异常链脱敏，DTO/快照不泄密。Verifier用真实BCrypt另验dummy成本与生产者同源、并发安全，不写时钟性能断言代替调用/状态证据。
+- [x] **步骤5：检查并提交。** `feat: 协调密码重置确认与统一失败比较`。
 
 ### 任务5：公开Controller、错误映射与API文档
 
@@ -121,11 +121,11 @@ fail/consume的ARGV固定10项：digest/emailDigest/email/admittedAtMs/expiresAt
 
 **Interfaces:** Controller注入Service/Reader/ClientIpResolver，读取HttpServletRequest、reader.read并传resolve出的remoteAddr，不收Principal/Session、不用JWT主体定位，调用reset后204/no-store。新异常中只有IP RateLimited携带Retry-After；VerificationFailed固定title“密码重置未完成”、detail“验证码或找回申请无效，请检查或重新申请”，账户拒绝不自带任何可识别字段。
 
-- [ ] **步骤1：写失败HTTP测试。** 匿名合法输入204，`assertEquals("", response.getContentAsString())`、无Location/Token、no-store；400 VALIDATION_FAILED/VERIFICATION_FAILED/NEW_PASSWORD_SAME_AS_OLD、415、429、503、500的code/type/正文脱敏，`PASSWORD_RESET_CONFIRMATION_RATE_LIMITED`仅IP，错误表不误用REQUEST或旧短前缀。对账户拒绝断言400与普通VerificationFailed body同一契约且无Retry-After；测试导入真实SecurityConfig/Filter及Reader，不关闭认证来伪造公开可用。
-- [ ] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.PasswordResetConfirmationControllerTest" --console=plain`。
-- [ ] **步骤3：实现Controller/配置/handler。** 新建@Tag/@Operation、严格请求schema三属性、204/400/401/403/415/429/500/503共8响应声明，204无content；401/403只是主动Bearer的既有链路，不制造正常角色403；503同时说明附带Token时AUTH_STATE_STORE_UNAVAILABLE。专用Validation/415不复用旧发码异常而改其title；原NewPasswordSameAsOld handler不变，验证响应含禁止缓存语义。
-- [ ] **步骤4：API文档并同命令全绿。** docs/api/user/confirm-password-reset.md含权限/原值密码/限流与伪比较/204及重新登录/完整错误表/示例/可执行文件体curl。按NOTE-001列对照：发码PASSWORD_RESET_REQUEST_*，确认PASSWORD_RESET_CONFIRMATION_*；账户拒绝只用PASSWORD_RESET_VERIFICATION_FAILED，不能提示等待时间；不宣称完全等时或失败一定未改密码。
-- [ ] **步骤5：检查并提交。** `feat: 暴露密码重置确认接口`。
+- [x] **步骤1：写失败HTTP测试。** 匿名合法输入204，`assertEquals("", response.getContentAsString())`、无Location/Token、no-store；400 VALIDATION_FAILED/VERIFICATION_FAILED/NEW_PASSWORD_SAME_AS_OLD、415、429、503、500的code/type/正文脱敏，`PASSWORD_RESET_CONFIRMATION_RATE_LIMITED`仅IP，错误表不误用REQUEST或旧短前缀。对账户拒绝断言400与普通VerificationFailed body同一契约且无Retry-After；测试导入真实SecurityConfig/Filter及Reader，不关闭认证来伪造公开可用。
+- [x] **步骤2：观察红灯。** `cmd /c gradlew.bat test --tests "org.example.music.user.controller.PasswordResetConfirmationControllerTest" --console=plain`。
+- [x] **步骤3：实现Controller/配置/handler。** 新建@Tag/@Operation、严格请求schema三属性、204/400/401/403/415/429/500/503共8响应声明，204无content；401/403只是主动Bearer的既有链路，不制造正常角色403；503同时说明附带Token时AUTH_STATE_STORE_UNAVAILABLE。专用Validation/415不复用旧发码异常而改其title；原NewPasswordSameAsOld handler不变，验证响应含禁止缓存语义。
+- [x] **步骤4：API文档并同命令全绿。** docs/api/user/confirm-password-reset.md含权限/原值密码/限流与伪比较/204及重新登录/完整错误表/示例/可执行文件体curl。按NOTE-001列对照：发码PASSWORD_RESET_REQUEST_*，确认PASSWORD_RESET_CONFIRMATION_*；账户拒绝只用PASSWORD_RESET_VERIFICATION_FAILED，不能提示等待时间；不宣称完全等时或失败一定未改密码。
+- [x] **步骤5：检查并提交。** `feat: 暴露密码重置确认接口`。
 
 ### 任务6：真实链路、反枚举、并发及故障验证
 
@@ -133,20 +133,20 @@ fail/consume的ARGV固定10项：digest/emailDigest/email/admittedAtMs/expiresAt
 
 **Interfaces:** 新抽象夹具@SpringBootTest/MockMvc/真实MySQL8.4+Redis8.10.2，具体类显式Docker条件、@DirtiesContext。生产者真实POST申请→真实Processor领取/发送/激活，SMTP可控捕获，后台沿用test profile关闭自动调度并显式驱动；确认Store/事务/JWT安全链均真实，spy仅用于实际执行前后控制故障/闩锁。原始用户行比较在重新登录前完成，避免把登录更新时间误认本接口覆盖。
 
-- [ ] **步骤1：真实成功及认证用例。** `should_reset_user_and_admin_and_revoke_only_target_old_logins()`：204、真实BCrypt新密码匹配、旧密码不能登录，用户名/邮箱新密码可登录，ADMIN按ROLE_SELECTION完成原流程，原目标USER/ADMIN登录角色Token均401。`should_ignore_other_valid_token_as_target_identity()`：用A有效Token配B合法申请重置B，A行/Token有效性不变；主动签名错/过期/撤销Token401且零额度/消费，无Token正常。旧角色Ticket/旧版本校验结果不能签成新版本有效登录。
-- [ ] **步骤2：真实额度及失败统一。** `should_hide_exhausted_account_across_new_requests_like_missing_email()`通过真实生产者生成多次申请，每次五错，保留账户900秒额度，测试夹具仅清冷却/模拟IP窗口结束以免等一分钟；第3个有效申请在账户拒绝时与无账户假申请同400/type/title/detail/无Retry-After，attempts不增加且未消费。IP第11次单独429+正确PTTL，无账户不造用户键；伪比较真实Hasher spy核对每普通预验证码失败一次matches，伪结果true也不得消费，IP拒绝零比较。
-- [ ] **步骤3：真实重发与竞态。** `should_reject_old_consume_if_new_activation_wins()`；`should_finish_old_sql_and_keep_new_active_if_old_consume_wins()`，新ACTIVE保留旧版本且后续不可兑换；新任务仅pending旧码仍可用。六路正确提交最多一次CAS；第5错先完成正确失败、非终态错码后仍可消费、旧错/消费迟到不能改新状态；角色/原始邮箱/摘要/版本变化及删除拒绝，只改用户名不覆盖。使用闩锁与两个真实Store实例，无sleep猜顺序。
-- [ ] **步骤4：真实存储故障。** 实际admit/recordFailure/consume执行后抛丢回复；消费未知断言更新方法从未调用/零写事务，可能已删码。消费后事务开始失败、实际SQL回滚行不变、实际commit后抛TransactionSystemException则503但密码/版本已改；全过程不恢复码、不退款、不自动CAS重试。实际原deadline前消费成功后跨窗提交仍允许；过期发生在BCrypt/新摘要计算之后、consume之前则400零写入。丢弃204后重复旧申请400，恢复有效登录核实状态。
-- [ ] **步骤5：契约/回归并定向全绿。** 用真实Token读受保护/v3/api-docs，核对8响应、三属性/writeOnly/密码边界/204无JSON。`cmd /c gradlew.bat test --tests "org.example.music.user.*PasswordResetConfirmation*Test" --tests "org.example.music.user.service.PasswordResetCodeVerifierTest" --console=plain`；检查XML实际包含Reader/Rules/Store/快照/事务/Verifier/Service/Controller/真实链路，必要容器0跳过。发码schema/队列成员/其他用途键/原发码额度在确认前后按相关场景核对未误删。
-- [ ] **步骤6：检查并提交。** `test: 验证密码重置确认真实链路与故障边界`。只修复范围内实际失败，不删除断言或mock提交成功，不将准备过的本地数据当真实链路证据。
+- [x] **步骤1：真实成功及认证用例。** `should_reset_user_and_admin_and_revoke_only_target_old_logins()`：204、真实BCrypt新密码匹配、旧密码不能登录，用户名/邮箱新密码可登录，ADMIN按ROLE_SELECTION完成原流程，原目标USER/ADMIN登录角色Token均401。`should_ignore_other_valid_token_as_target_identity()`：用A有效Token配B合法申请重置B，A行/Token有效性不变；主动签名错/过期/撤销Token401且零额度/消费，无Token正常。旧角色Ticket/旧版本校验结果不能签成新版本有效登录。
+- [x] **步骤2：真实额度及失败统一。** `should_hide_exhausted_account_across_new_requests_like_missing_email()`通过真实生产者生成多次申请，每次五错，保留账户900秒额度，测试夹具仅清冷却/模拟IP窗口结束以免等一分钟；第3个有效申请在账户拒绝时与无账户假申请同400/type/title/detail/无Retry-After，attempts不增加且未消费。IP第11次单独429+正确PTTL，无账户不造用户键；伪比较真实Hasher spy核对每普通预验证码失败一次matches，伪结果true也不得消费，IP拒绝零比较。
+- [x] **步骤3：真实重发与竞态。** `should_reject_old_consume_if_new_activation_wins()`；`should_finish_old_sql_and_keep_new_active_if_old_consume_wins()`，新ACTIVE保留旧版本且后续不可兑换；新任务仅pending旧码仍可用。六路正确提交最多一次CAS；第5错先完成正确失败、非终态错码后仍可消费、旧错/消费迟到不能改新状态；角色/原始邮箱/摘要/版本变化及删除拒绝，只改用户名不覆盖。使用闩锁与两个真实Store实例，无sleep猜顺序。
+- [x] **步骤4：真实存储故障。** 实际admit/recordFailure/consume执行后抛丢回复；消费未知断言更新方法从未调用/零写事务，可能已删码。消费后事务开始失败、实际SQL回滚行不变、实际commit后抛TransactionSystemException则503但密码/版本已改；全过程不恢复码、不退款、不自动CAS重试。实际原deadline前消费成功后跨窗提交仍允许；过期发生在BCrypt/新摘要计算之后、consume之前则400零写入。丢弃204后重复旧申请400，恢复有效登录核实状态。
+- [x] **步骤5：契约/回归并定向全绿。** 用真实Token读受保护/v3/api-docs，核对8响应、三属性/writeOnly/密码边界/204无JSON。`cmd /c gradlew.bat test --tests "org.example.music.user.*PasswordResetConfirmation*Test" --tests "org.example.music.user.service.PasswordResetCodeVerifierTest" --console=plain`；检查XML实际包含Reader/Rules/Store/快照/事务/Verifier/Service/Controller/真实链路，必要容器0跳过。发码schema/队列成员/其他用途键/原发码额度在确认前后按相关场景核对未误删。
+- [x] **步骤6：检查并提交。** `test: 验证密码重置确认真实链路与故障边界`。只修复范围内实际失败，不删除断言或mock提交成功，不将准备过的本地数据当真实链路证据。
 
 ### 任务7：部署说明、完整基准与审核交接
 
 **Files:** 新增docs/deployment/password-reset-confirmations.md、docs/reviews/2026-11-05-password-reset-confirmation-review.md；更新本计划/设计执行状态。文档不编造单元测试，验证以真实命令、范围和材料核对为准。
 
-- [ ] **步骤1：部署说明及NOTE-002落地。** 保持单Redis/Redis≥7、持久化/时钟/全实例认证版本生效前提；确认不动生产者配置。明确持有真实challengeId者可消耗账户额度，合法用户在当前原900秒窗口剩余时间内统一400，重新发码不会恢复；额度在DB绑定复核前扣取，随后绑定失效也不退款，不能将验证码五错上限误当作账户额度计数上限；单个窗口上限900秒，重复攻击可能在后续窗口再次触发，受发码60秒冷却/每UTC日10次约束，不宣称攻击永久不可重复。原窗口TTL自然恢复，无人工删键清额/新恢复接口、不改变额度；日志脱敏、IP429与账户400区别仅对运维说明，不向客户端回传账户层原因。
-- [ ] **步骤2：代码冻结后完整验证。** `$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain`，保存源代码commit/退出码/BUILD状态/JUnit XML，逐类汇总通过=tests−failures−errors−skipped及新增类数；MySQL/Redis/MinIO必要测试零跳过。失败先定位真实原因，修复及适用定向后重做所需完整验证；全量后只改文档，业务改动则重新验证，历史1718不冒充本接口结果。
-- [ ] **步骤3：准备完整同任务材料。** 相对10e38d7列含untracked全部文件，基线/Method+Path/公开权限/声称行为/无迁移/API/实际测试四项数量/配置默认/风险/curl齐全。NOTE-001/002保留原编号、分级及三项判断，设计accepted不冒充实现accepted；表明NOTE-002不构成新阻断。`git diff --check`、状态清单、迁移/依赖/生产者脚本及公开路径差异核对，中文提交文档和验证记录。
+- [x] **步骤1：部署说明及NOTE-002落地。** 保持单Redis/Redis≥7、持久化/时钟/全实例认证版本生效前提；确认不动生产者配置。明确持有真实challengeId者可消耗账户额度，合法用户在当前原900秒窗口剩余时间内统一400，重新发码不会恢复；额度在DB绑定复核前扣取，随后绑定失效也不退款，不能将验证码五错上限误当作账户额度计数上限；单个窗口上限900秒，重复攻击可能在后续窗口再次触发，受发码60秒冷却/每UTC日10次约束，不宣称攻击永久不可重复。原窗口TTL自然恢复，无人工删键清额/新恢复接口、不改变额度；日志脱敏、IP429与账户400区别仅对运维说明，不向客户端回传账户层原因。
+- [x] **步骤2：代码冻结后完整验证。** `$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain`，保存源代码commit/退出码/BUILD状态/JUnit XML，逐类汇总通过=tests−failures−errors−skipped及新增类数；MySQL/Redis/MinIO必要测试零跳过。失败先定位真实原因，修复及适用定向后重做所需完整验证；全量后只改文档，业务改动则重新验证，历史1718不冒充本接口结果。
+- [x] **步骤3：准备完整同任务材料。** 相对10e38d7列含untracked全部文件，基线/Method+Path/公开权限/声称行为/无迁移/API/实际测试四项数量/配置默认/风险/curl齐全。NOTE-001/002保留原编号、分级及三项判断，设计accepted不冒充实现accepted；表明NOTE-002不构成新阻断。`git diff --check`、状态清单、迁移/依赖/生产者脚本及公开路径差异核对，中文提交文档和验证记录。
 - [ ] **步骤4：独立实现审核。** 由Claude只读复核；Codex不代替其结论。needs_revision按AGENTS原编号/分级/轮次核实，第三轮未过或escalated遵规则，不开启新循环。未独立accepted不开始下一接口，推送遵从本任务用户授权，不挪用此前发码推送许可。
 
 ## 设计意见复核与计划自查
@@ -159,4 +159,6 @@ NOTE-002：认可事实/非阻断分级/部署记录方向；公开发码可获�
 
 类型核对：Challenge使用现有Admission/AccountSnapshot；Prepared只有rawEmail/role/version/hash预期；Store的false/empty只代表已知正常拒绝/失效，未知都异常；仅IP产生RateLimited，reject始终失败；code验证后路径不再reject；update不接JWT身份、不重取预期。所有参数/RESP顺序已确定，无占位实现/未定业务，不写方法体代替后续实现。
 
-当前只修改设计与计划文档，未运行或声称新功能测试通过。计划完成自查后交用户审阅；执行方式已确定为Codex本会话逐任务实现、Claude独立只读审核，确认计划前不写业务代码。
+用户已确认实施，任务1至6及部署说明已落实。源代码与测试最终冻结e2909bd；首轮339d14c完整验证158类1825通过、0失败/错误/跳过，最终版本e2909bd完整重跑15分56秒、158类1825通过/0失败/0错误/0跳过，结果汇总至docs/reviews/2026-11-05-password-reset-confirmation-review.md。独立实现审核尚未进行。
+
+执行调整均在当前单接口范围内。真实链路公共夹具在任务3随SQL测试提前提交，以支持真实事务验证；Controller增加HttpServletResponse以在入口设置no-store，覆盖复用旧异常和通用500的响应；严格Reader复用既有Diagnostics，未复制脱敏实现。过期JWT测试夹具字段修正形成e2909bd，最终全量按该版本重新执行。
