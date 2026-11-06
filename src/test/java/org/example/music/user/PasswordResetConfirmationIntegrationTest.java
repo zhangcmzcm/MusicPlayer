@@ -110,7 +110,7 @@ class PasswordResetConfirmationIntegrationTest extends PasswordResetConfirmation
                 org.springframework.security.oauth2.jwt.JwsHeader.with(org.springframework.security.oauth2.jose.jws.MacAlgorithm.HS256).build(),
                 org.springframework.security.oauth2.jwt.JwtClaimsSet.builder().issuer("music-api").audience(List.of("music-client"))
                         .subject(user.getId().toString()).issuedAt(now.minusSeconds(600)).expiresAt(now.minusSeconds(300))
-                        .claim("role","USER").claim("token_version",1L).build())).getTokenValue();
+                        .claim("role","USER").claim("tokenVersion",1L).claim("loginType","USERNAME_PASSWORD").build())).getTokenValue();
         for(String token:List.of(revoked,expired,"invalid.jwt.signature")) {
             var result=mvc.perform(post(CONFIRM).header("Authorization","Bearer "+token).contentType("application/json")
                     .content(json.writeValueAsString(Map.of("challengeId",ready.accepted().id(),"code",ready.code(),"newPassword","new-password")))).andReturn();
