@@ -56,7 +56,7 @@ public class PasswordResetConfirmationRequestReader {
         } catch (PasswordResetConfirmationValidationException known) {
             throw known;
         } catch (RuntimeException failure) {
-            throw new IllegalStateException("Password reset request binding failed unexpectedly", safe(failure));
+            throw new IllegalStateException("Password reset request binding failed unexpectedly", PasswordResetDiagnostics.sanitized(failure));
         }
     }
 
@@ -71,8 +71,4 @@ public class PasswordResetConfirmationRequestReader {
         } catch (IllegalArgumentException failure) { throw new PasswordResetConfirmationUnsupportedMediaTypeException(); }
     }
 
-    private static Throwable safe(Throwable failure) {
-        var safe = new RuntimeException("Password reset request binding failure");
-        safe.setStackTrace(failure.getStackTrace()); return safe;
-    }
 }

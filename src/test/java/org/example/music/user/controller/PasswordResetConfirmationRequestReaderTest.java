@@ -51,4 +51,17 @@ class PasswordResetConfirmationRequestReaderTest {
         var input=request(""); input.setContent(new byte[]{(byte)0xc3,0x28});
         assertThrows(PasswordResetConfirmationValidationException.class, () -> reader.read(input));
     }
+    @Test void should_reject_missing_null_control_and_surrogate_values() {
+        String valid=body("new-pass");
+        for(String invalid:new String[]{valid.replace("\"012345\"","null"),valid.replace("\"012345\"","[]"),
+                valid.replace("\"new-pass\"","null"),valid.replace("new-pass","new\\tpass"),
+                valid.replace("new-pass","new\\ud800pass"),valid.replace("new-pass","new\\u007fpass"),
+                valid.replace("new-pass","new\\u001fpass"),valid.replace("012345"," 012345"),
+                valid.replace(id," "+id),valid.replace("code","unknown"),valid.replace("newPassword","confirmPassword")}) {
+            assertThrows(PasswordResetConfirmationValidationException.class,()->reader.read(request(invalid)));
+        }
+        var input=request(valid); input.setContentType(null);
+        assertThrows(PasswordResetConfirmationUnsupportedMediaTypeException.class,()->reader.read(input));
+    }
+
 }
