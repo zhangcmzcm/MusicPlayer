@@ -18,6 +18,20 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
 
+    @Query("select new org.example.music.user.domain.PasswordResetPreparedSnapshot(u.id,u.email,u.userRole,u.tokenVersion,u.passwordHash) from UserEntity u where u.id = :userId")
+    Optional<org.example.music.user.domain.PasswordResetPreparedSnapshot> findPasswordResetPreparedSnapshot(@Param("userId") Integer userId);
+
+    @Modifying(clearAutomatically = true)
+    @Query(value = "UPDATE users SET password_token = :newHash, token_version = token_version + 1, updated_at = UTC_TIMESTAMP(6) "
+            + "WHERE id = :userId AND (CAST(email AS BINARY) <=> CAST(:previousEmail AS BINARY)) "
+            + "AND CAST(user_role AS BINARY) = CAST(:previousRole AS BINARY) "
+            + "AND CAST(password_token AS BINARY) = CAST(:previousHash AS BINARY) "
+            + "AND token_version = :expectedVersion AND token_version < 9223372036854775807", nativeQuery = true)
+    int resetPasswordIfSnapshotMatches(@Param("userId") Integer userId, @Param("previousEmail") String previousEmail,
+            @Param("previousRole") String previousRole, @Param("previousHash") String previousHash,
+            @Param("expectedVersion") long expectedVersion, @Param("newHash") String newHash);
+
+
     @Query("select new org.example.music.user.domain.PasswordResetAccountSnapshot(u.id,u.email,u.userRole,u.tokenVersion) from UserEntity u where u.email = :email")
     Optional<org.example.music.user.domain.PasswordResetAccountSnapshot> findPasswordResetSnapshotByEmail(@Param("email") String email);
 
