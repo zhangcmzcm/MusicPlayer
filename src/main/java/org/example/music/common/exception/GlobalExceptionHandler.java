@@ -7,6 +7,11 @@ import org.example.music.user.exception.PasswordResetUnsupportedMediaTypeExcepti
 import org.example.music.user.exception.PasswordResetRequestRateLimitedException;
 import org.example.music.user.exception.PasswordResetRequestUnavailableException;
 import org.example.music.user.exception.PasswordResetDiagnostics;
+import org.example.music.user.exception.PasswordResetVerificationFailedException;
+import org.example.music.user.exception.PasswordResetConfirmationValidationException;
+import org.example.music.user.exception.PasswordResetConfirmationUnsupportedMediaTypeException;
+import org.example.music.user.exception.PasswordResetConfirmationRateLimitedException;
+import org.example.music.user.exception.PasswordResetConfirmationUnavailableException;
 import org.example.music.user.exception.ReauthenticationRequiredException;
 import org.example.music.user.exception.EmailUnchangedException;
 import org.example.music.user.exception.EmailChangeEmailAlreadyExistsException;
@@ -111,6 +116,28 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(PasswordResetVerificationFailedException.class)
+    public ResponseEntity<ProblemDetail> handleResetVerification(PasswordResetVerificationFailedException exception, HttpServletRequest request) {
+        return ResponseEntity.badRequest().cacheControl(org.springframework.http.CacheControl.noStore()).body(problem(request,HttpStatus.BAD_REQUEST,"PASSWORD_RESET_VERIFICATION_FAILED","密码重置未完成",exception.getMessage()));
+    }
+    @ExceptionHandler(PasswordResetConfirmationValidationException.class)
+    public ResponseEntity<ProblemDetail> handleResetConfirmationValidation(PasswordResetConfirmationValidationException exception, HttpServletRequest request) {
+        return ResponseEntity.badRequest().cacheControl(org.springframework.http.CacheControl.noStore()).body(problem(request,HttpStatus.BAD_REQUEST,"VALIDATION_FAILED","密码重置未完成",exception.getMessage()));
+    }
+    @ExceptionHandler(PasswordResetConfirmationUnsupportedMediaTypeException.class)
+    public ResponseEntity<ProblemDetail> handleResetConfirmationMediaType(PasswordResetConfirmationUnsupportedMediaTypeException exception, HttpServletRequest request) {
+        return ResponseEntity.status(415).cacheControl(org.springframework.http.CacheControl.noStore()).body(problem(request,HttpStatus.UNSUPPORTED_MEDIA_TYPE,"UNSUPPORTED_MEDIA_TYPE","密码重置未完成",exception.getMessage()));
+    }
+    @ExceptionHandler(PasswordResetConfirmationRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleResetConfirmationRateLimited(PasswordResetConfirmationRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(429).cacheControl(org.springframework.http.CacheControl.noStore()).header(HttpHeaders.RETRY_AFTER,Long.toString(exception.retryAfterSeconds())).body(problem(request,HttpStatus.TOO_MANY_REQUESTS,"PASSWORD_RESET_CONFIRMATION_RATE_LIMITED","密码重置请求过于频繁",exception.getMessage()));
+    }
+    @ExceptionHandler(PasswordResetConfirmationUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleResetConfirmationUnavailable(PasswordResetConfirmationUnavailableException exception, HttpServletRequest request) {
+        LOGGER.warn("Password reset confirmation unavailable, traceId={}",MDC.get("traceId"),PasswordResetDiagnostics.sanitized(exception));
+        return ResponseEntity.status(503).cacheControl(org.springframework.http.CacheControl.noStore()).body(problem(request,HttpStatus.SERVICE_UNAVAILABLE,"PASSWORD_RESET_CONFIRMATION_UNAVAILABLE","密码重置未完成",exception.getMessage()));
+    }
 
     @ExceptionHandler(PasswordResetValidationException.class)
     public ResponseEntity<ProblemDetail> handlePasswordResetValidation(PasswordResetValidationException exception,HttpServletRequest request){
