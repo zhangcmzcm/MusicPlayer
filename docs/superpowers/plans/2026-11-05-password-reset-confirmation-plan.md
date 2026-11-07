@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿用AGENTS.md：Codex本会话唯一实现，Claude独立只读审核，不派发实现子代理。上述执行子技能未列为可用，不声称已调用。用户已于2026-11-06确认开始，Codex按本计划实施，最终版本e2909bd完整验证已通过，待独立实现审核。
+> 执行方式沿用AGENTS.md：Codex本会话唯一实现，Claude独立只读审核，不派发实现子代理。上述执行子技能未列为可用，不声称已调用。用户已于2026-11-06确认开始，Codex按本计划实施，最终版本e2909bd完整验证已通过，2026-11-07第1/3轮独立实现审核accepted，零阻断项。
 
 **Goal:** 实现唯一公开POST /api/v1/users/password-resets，验证既有找回申请后一次性消费验证码、条件更新密码及认证版本，204成功并撤销目标账户全部旧登录。
 
@@ -147,7 +147,7 @@ fail/consume的ARGV固定10项：digest/emailDigest/email/admittedAtMs/expiresAt
 - [x] **步骤1：部署说明及NOTE-002落地。** 保持单Redis/Redis≥7、持久化/时钟/全实例认证版本生效前提；确认不动生产者配置。明确持有真实challengeId者可消耗账户额度，合法用户在当前原900秒窗口剩余时间内统一400，重新发码不会恢复；额度在DB绑定复核前扣取，随后绑定失效也不退款，不能将验证码五错上限误当作账户额度计数上限；单个窗口上限900秒，重复攻击可能在后续窗口再次触发，受发码60秒冷却/每UTC日10次约束，不宣称攻击永久不可重复。原窗口TTL自然恢复，无人工删键清额/新恢复接口、不改变额度；日志脱敏、IP429与账户400区别仅对运维说明，不向客户端回传账户层原因。
 - [x] **步骤2：代码冻结后完整验证。** `$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain`，保存源代码commit/退出码/BUILD状态/JUnit XML，逐类汇总通过=tests−failures−errors−skipped及新增类数；MySQL/Redis/MinIO必要测试零跳过。失败先定位真实原因，修复及适用定向后重做所需完整验证；全量后只改文档，业务改动则重新验证，历史1718不冒充本接口结果。
 - [x] **步骤3：准备完整同任务材料。** 相对10e38d7列含untracked全部文件，基线/Method+Path/公开权限/声称行为/无迁移/API/实际测试四项数量/配置默认/风险/curl齐全。NOTE-001/002保留原编号、分级及三项判断，设计accepted不冒充实现accepted；表明NOTE-002不构成新阻断。`git diff --check`、状态清单、迁移/依赖/生产者脚本及公开路径差异核对，中文提交文档和验证记录。
-- [ ] **步骤4：独立实现审核。** 由Claude只读复核；Codex不代替其结论。needs_revision按AGENTS原编号/分级/轮次核实，第三轮未过或escalated遵规则，不开启新循环。未独立accepted不开始下一接口，推送遵从本任务用户授权，不挪用此前发码推送许可。
+- [x] **步骤4：独立实现审核。** 由Claude只读复核；Codex不代替其结论。needs_revision按AGENTS原编号/分级/轮次核实，第三轮未过或escalated遵规则，不开启新循环。未独立accepted不开始下一接口，推送遵从本任务用户授权，不挪用此前发码推送许可。
 
 ## 设计意见复核与计划自查
 
@@ -159,6 +159,6 @@ NOTE-002：认可事实/非阻断分级/部署记录方向；公开发码可获�
 
 类型核对：Challenge使用现有Admission/AccountSnapshot；Prepared只有rawEmail/role/version/hash预期；Store的false/empty只代表已知正常拒绝/失效，未知都异常；仅IP产生RateLimited，reject始终失败；code验证后路径不再reject；update不接JWT身份、不重取预期。所有参数/RESP顺序已确定，无占位实现/未定业务，不写方法体代替后续实现。
 
-用户已确认实施，任务1至6及部署说明已落实。源代码与测试最终冻结e2909bd；首轮339d14c完整验证158类1825通过、0失败/错误/跳过，最终版本e2909bd完整重跑15分56秒、158类1825通过/0失败/0错误/0跳过，结果汇总至docs/reviews/2026-11-05-password-reset-confirmation-review.md。独立实现审核尚未进行。
+用户已确认实施，任务1至6及部署说明已落实。源代码与测试最终冻结e2909bd；首轮339d14c完整验证158类1825通过、0失败/错误/跳过，最终版本e2909bd完整重跑15分56秒、158类1825通过/0失败/0错误/0跳过，结果汇总至docs/reviews/2026-11-05-password-reset-confirmation-review.md。2026-11-07第1/3轮独立实现审核accepted，独立完整验证15分42秒、1825通过/0失败/0错误/0跳过，设计NOTE-001/002已由审核方关闭。实现审核NOTE-001已按代码分类核实并补充400/503语义澄清，仅修改文档。用户已授权核实后推送。
 
 执行调整均在当前单接口范围内。真实链路公共夹具在任务3随SQL测试提前提交，以支持真实事务验证；Controller增加HttpServletResponse以在入口设置no-store，覆盖复用旧异常和通用500的响应；严格Reader复用既有Diagnostics，未复制脱敏实现。过期JWT测试夹具字段修正形成e2909bd，最终全量按该版本重新执行。

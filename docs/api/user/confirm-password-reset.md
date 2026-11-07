@@ -64,6 +64,8 @@ Cache-Control: no-store
 | 403 | FORBIDDEN | 原安全链拒绝，无新增角色限制 |
 | 503 | AUTH_STATE_STORE_UNAVAILABLE | 主动附带Token时认证状态查询失败 |
 
+“无账户”指原申请绑定的数据库账户已不存在，按绑定变化返回400 PASSWORD_RESET_VERIFICATION_FAILED。不存在邮箱的假申请未产生ACTIVE，按申请未激活或缺失返回同一400。ACTIVE缺少userId、rawEmail、role或tokenVersion等必需字段属于结构损坏，返回503 PASSWORD_RESET_CONFIRMATION_UNAVAILABLE。
+
 统一验证失败示例，traceId及instance由请求确定，无账户或等待扩展字段。
 
 ```json
