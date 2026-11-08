@@ -7,6 +7,8 @@ import org.example.music.user.exception.PasswordResetUnsupportedMediaTypeExcepti
 import org.example.music.user.exception.PasswordResetRequestRateLimitedException;
 import org.example.music.user.exception.PasswordResetRequestUnavailableException;
 import org.example.music.user.exception.PasswordResetDiagnostics;
+import org.example.music.user.exception.PasswordResetVerificationRateLimitedException;
+import org.example.music.user.exception.PasswordResetVerificationUnavailableException;
 import org.example.music.user.exception.PasswordResetVerificationFailedException;
 import org.example.music.user.exception.PasswordResetConfirmationValidationException;
 import org.example.music.user.exception.PasswordResetConfirmationUnsupportedMediaTypeException;
@@ -116,6 +118,19 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(PasswordResetVerificationRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleResetVerificationRateLimited(PasswordResetVerificationRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(429).cacheControl(org.springframework.http.CacheControl.noStore())
+                .header(HttpHeaders.RETRY_AFTER,Long.toString(exception.retryAfterSeconds()))
+                .body(problem(request,HttpStatus.TOO_MANY_REQUESTS,"PASSWORD_RESET_VERIFICATION_RATE_LIMITED","找回密码验证过于频繁",exception.getMessage()));
+    }
+    @ExceptionHandler(PasswordResetVerificationUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleResetVerificationUnavailable(PasswordResetVerificationUnavailableException exception, HttpServletRequest request) {
+        LOGGER.warn("Password reset verification unavailable, traceId={}",MDC.get("traceId"),PasswordResetDiagnostics.sanitized(exception));
+        return ResponseEntity.status(503).cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(problem(request,HttpStatus.SERVICE_UNAVAILABLE,"PASSWORD_RESET_VERIFICATION_UNAVAILABLE","密码重置未完成",exception.getMessage()));
+    }
 
     @ExceptionHandler(PasswordResetVerificationFailedException.class)
     public ResponseEntity<ProblemDetail> handleResetVerification(PasswordResetVerificationFailedException exception, HttpServletRequest request) {

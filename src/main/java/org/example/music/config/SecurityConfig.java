@@ -108,7 +108,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/login",
                                 "/api/v1/email/send-code",
                                 "/api/v1/users/password-reset-requests",
-                                "/api/v1/users/password-resets"
+                                "/api/v1/users/password-resets",
+                                "/api/v1/users/password-reset-verifications"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
