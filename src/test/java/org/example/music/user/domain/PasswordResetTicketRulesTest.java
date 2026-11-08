@@ -23,7 +23,7 @@ class PasswordResetTicketRulesTest {
     }
     @Test void should_reject_invalid_email_period_or_version() {
         for(var value:new PasswordResetTicketSnapshot[]{ticket("ALICE@example.com","ALICE@example.com",0,period()),
-                ticket("alice@example.com","other@example.com",0,period()),ticket("alice@example.com","alice@example.com",-1,period()),
+                ticket("alice@example.com","other@example.com",0,period()),ticket("alice@example.com"," ".repeat(121)+"alice@example.com",0,period()),ticket("alice@example.com","alice@example.com",-1,period()),
                 ticket("alice@example.com","alice@example.com",0,new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(299))),
                 ticket("alice@example.com","alice@example.com",0,new PasswordResetTicketPeriod(Instant.EPOCH.plusNanos(1),Instant.EPOCH.plusSeconds(300).plusNanos(1)))}) {
             assertThrows(PasswordResetVerificationUnavailableException.class,()->rules.validate(value));

@@ -17,7 +17,8 @@ public class PasswordResetTicketRules {
                     || value.account() == null || value.period() == null) throw unavailable();
             var account = value.account();
             if (account.userId() == null || account.userId() < 1 || account.userRole() == null
-                    || account.tokenVersion() < 0 || !emails.matches(value.email(),account.email())) throw unavailable();
+                    || account.tokenVersion() < 0 || account.email() == null || account.email().length() > 120
+                    || !emails.matches(value.email(),account.email())) throw unavailable();
             var period = value.period();
             long first = period.issuedAt().toEpochMilli();
             long last = period.expiresAt().toEpochMilli();

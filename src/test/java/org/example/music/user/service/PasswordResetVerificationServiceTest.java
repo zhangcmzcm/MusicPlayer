@@ -79,4 +79,10 @@ class PasswordResetVerificationServiceTest {
         doThrow(new IllegalStateException("private-ticket")).when(tickets).readCurrent(42);
         var failure=assertThrows(IllegalStateException.class,this::verify);assertFalse(failure.getCause().toString().contains("private-ticket"));
     }
+    @Test void should_translate_second_binding_read_failure_without_extra_dummy() {
+        when(reader.isCurrent(challenge)).thenReturn(true).thenThrow(new PasswordResetConfirmationUnavailableException(null));
+        assertThrows(PasswordResetVerificationUnavailableException.class,this::verify);
+        org.mockito.Mockito.verify(verifier,times(1)).matches("012345","hash");org.mockito.Mockito.verify(verifier,never()).reject(anyString());verifyNoInteractions(tickets);
+    }
+
 }
