@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Optional;
 import org.example.music.user.domain.*;
 import org.example.music.user.exception.PasswordResetVerificationUnavailableException;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Repository;
 public class PasswordResetTicketStore {
     public static final String PREFIX = "music:auth:password-reset-ticket:";
     private static final RedisScript<List> READ = script("read-current");
+    private static final RedisScript<List> EXCHANGE = script("exchange");
     private final StringRedisTemplate redis;
     private final PasswordResetTicketRules rules;
     private final PasswordResetConfirmationRules challenges;
@@ -56,6 +59,43 @@ public class PasswordResetTicketStore {
             rules.validate(snapshot);
             return Optional.of(snapshot);
         } catch (RuntimeException failure) { throw new PasswordResetVerificationUnavailableException(failure); }
+    }
+    public Optional<PasswordResetTicketPeriod> exchange(PasswordResetChallengeSnapshot expected,
+            Optional<PasswordResetTicketSnapshot> previous, String candidateDigest) {
+        try {
+            challenges.validateChallenge(expected);
+            if (previous == null || !PasswordResetIdentifiers.isCanonicalDigest(candidateDigest)) throw unavailable();
+            var account = expected.account();
+            var args = new ArrayList<Object>(List.of(expected.digest(),expected.emailDigest(),expected.email(),
+                    Long.toString(expected.admission().admittedAt().toEpochMilli()),Long.toString(expected.admission().expiresAt().toEpochMilli()),
+                    account.userId().toString(),account.email(),account.userRole().name(),Long.toString(account.tokenVersion()),expected.codeHash(),candidateDigest));
+            if (previous.isPresent()) {
+                var old = previous.orElseThrow();
+                rules.validate(old);
+                if (!account.userId().equals(old.account().userId())) throw unavailable();
+                args.add("1");
+                args.addAll(List.of("1",old.digest(),old.account().userId().toString(),old.email(),old.emailDigest(),old.account().email(),
+                        old.account().userRole().name(),Long.toString(old.account().tokenVersion()),
+                        Long.toString(old.period().issuedAt().toEpochMilli()),Long.toString(old.period().expiresAt().toEpochMilli())));
+            } else {
+                args.add("0");
+                args.addAll(Collections.nCopies(10,""));
+            }
+            var reply = execute(EXCHANGE,List.of(PasswordResetRequestStore.PREFIX + "challenge:" + expected.digest(),
+                    PasswordResetRequestStore.PREFIX + "active:" + expected.emailDigest(),PREFIX + "active:" + account.userId(),
+                    PREFIX + "ticket:" + candidateDigest),args.toArray());
+            if (reply != null && reply.size() == 3 && reply.get(0) instanceof Long status
+                    && reply.get(1) instanceof Long first && reply.get(2) instanceof Long last) {
+                if (status == 1 && first == 0 && last == 0) return Optional.empty();
+                if (status == 0 && first >= 0 && first <= 9007199254440991L && last == first + 300000) {
+                    var period = new PasswordResetTicketPeriod(Instant.ofEpochMilli(first),Instant.ofEpochMilli(last));
+                    rules.validate(new PasswordResetTicketSnapshot(candidateDigest,expected.emailDigest(),expected.email(),account,period));
+                    return Optional.of(period);
+                }
+            }
+            throw unavailable();
+        } catch (PasswordResetVerificationUnavailableException known) { throw known; }
+        catch (RuntimeException failure) { throw new PasswordResetVerificationUnavailableException(failure); }
     }
     private static long number(String value) {
         if (!value.matches("0|[1-9][0-9]*")) throw unavailable();
