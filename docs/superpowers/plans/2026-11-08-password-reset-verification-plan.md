@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿用AGENTS.md，由Codex本会话唯一实现，Claude独立只读审核。上述执行子技能未列为可用，按本会话原生流程逐任务执行。用户已确认开始，任务1至6已实施并定向验证通过，源代码/测试冻结be2f091，完整验证168类1926通过/0失败/0错误/0跳过，待独立实现审核。
+> 执行方式沿用AGENTS.md，由Codex本会话唯一实现，Claude独立只读审核。上述执行子技能未列为可用，按本会话原生流程逐任务执行。用户已确认开始，任务1至6已实施并定向验证通过，源代码/测试冻结be2f091，完整验证168类1926通过/0失败/0错误/0跳过，第1/3轮独立实现审核accepted，零阻断项。
 
 **Goal:** 实现唯一POST /api/v1/users/password-reset-verifications，将有效邮箱验证码原子兑换为该账户最新一张300秒一次性resetTicket，用户表只读。
 
@@ -159,14 +159,14 @@ TicketStore注入StringRedisTemplate、PasswordResetTicketRules及既有Password
 - [x] **步骤1 完整基准。** 记录源代码commit后运行`$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain`，保存退出码/BUILD状态/实际XML。汇总通过=tests−failures−errors−skipped，区分新增类数/用例与基线1825，逐项列所有失败或跳过及原因。MySQL/Redis/MinIO必要集成零跳过才提交；实际业务改动后重新验证，不把旧UP-TO-DATE结果作为本轮运行。
 - [x] **步骤2 材料与NOTE-001处置。** 相对da146b2列全量文件含untracked、接口/权限/行为、精确命令及通过/失败/错误/跳过、API/部署/无迁移/基线/curl/技术取值与残余风险。按原编号“本任务设计NOTE-001 非阻断”填六列表，证据为当前/最终三方表及实际混合入口共享计数测试；不冒充已获实现accepted。上一任务“无账户”意见已由本次设计审核核实关闭，如实登记来源。
 - [x] **步骤3 冻结核对并提交。** git diff --check及全部文件清单核对，确认无旧producer/confirmation脚本源、UserRepository/SQL、配置、迁移或其他路径改动。文档按实际结果写入，中文提交`docs: 记录独立密码验证全量验证与审核材料`。
-- [ ] **步骤4 Claude独立实现审核。** 唯一新Method+Path审核，反馈按AGENTS原编号/分级/同任务轮次复核。needs_revision修复或举证请求复核；第三轮未解或escalated按规则交人类。accepted后再进入第三步单独任务，推送按本任务用户授权。
+- [x] **步骤4 Claude独立实现审核。** 唯一新Method+Path审核，反馈按AGENTS原编号/分级/同任务轮次复核。needs_revision修复或举证请求复核；第三轮未解或escalated按规则交人类。accepted后再进入第三步单独任务，推送按本任务用户授权。
 
 ## 设计反馈处置与计划自查
 
-设计审核第1/3轮accepted，零阻断项。NOTE-001问题成立，内部兼容键名与公开错误码不同，按码名定位Redis确有混淆风险；认可非阻断分级及三方对照方向。任务5/7在API/部署同时列当前阶段和最终阶段，记录共享旧窗口原因，HTTP测试及混合入口真实额度测试作为实现证据。API与部署三方表已落实，实际混合入口定向测试通过，处置待独立实现审核核实。
+设计审核第1/3轮accepted，零阻断项。NOTE-001问题成立，内部兼容键名与公开错误码不同，按码名定位Redis确有混淆风险；认可非阻断分级及三方对照方向。任务5/7在API/部署同时列当前阶段和最终阶段，记录共享旧窗口原因，HTTP测试及混合入口真实额度测试作为实现证据。API与部署三方表已落实，实际混合入口定向测试通过，本次独立实现审核已核实修复并关闭。
 
 自查覆盖映射为设计§1/2→全局及任务5/7，§3→任务1/5/6，§4→任务4/6/7，§5→任务4/6，§6/7→协议及任务2/3/6，§8→任务3/4/6，§9→任务4/5/6，§10→文件清单，§11→所有测试任务及完整基准，§12→兼容schema和范围门禁，§13→任务5文档。五项Review Focus均有具名断言。
 
 参数/类型已固定为两字段DTO、十字段票、22个兑换参数/4键、两种Optional正常结果、两类新异常；AccountSnapshot使用既有userRole/email访问器，Period使用issuedAt/expiresAt，指针所有者为Integer。成功时间仅由Redis产生，Java重新校验模型；任意未知回复均503而非empty。孤立记录定位边界已明确，既有previous快照的一键损坏仍503，无新增扫描或授权捷径。
 
-计划已获用户确认并实施，源代码与测试冻结be2f091。最终定向10类101通过/0失败/0错误/0跳过，完整MINIO_INTEGRATION_TESTS=true cleanTest check已通过，17分47秒、168类1926通过/0失败/0错误/0跳过，结果与全部材料汇总至docs/reviews/2026-11-08-password-reset-verification-review.md。独立实现审核待开展。
+计划已获用户确认并实施，源代码与测试冻结be2f091。最终定向10类101通过/0失败/0错误/0跳过，完整MINIO_INTEGRATION_TESTS=true cleanTest check已通过，17分47秒、168类1926通过/0失败/0错误/0跳过，结果与全部材料汇总至docs/reviews/2026-11-08-password-reset-verification-review.md。第1/3轮独立实现审核accepted，独立完整验证17分28秒、168类1926通过/0失败/0错误/0跳过。新的实现NOTE-001（Reader重复）核实成立并列第三步设计评估，见审核材料处置表。用户已授权核实后推送。
