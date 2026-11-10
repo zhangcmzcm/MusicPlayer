@@ -1,41 +1,71 @@
-# 密码重置确认部署与故障边界
+# 三步密码重置提交部署与故障边界
 
 ## 运行前提
 
-本次唯一接口为POST /api/v1/users/password-resets，复用既有MySQL8.4、Redis及认证版本过滤器。无新依赖、Flyway迁移、Compose服务、配置项或后台任务，保持ddl-auto=none。
+本轮改造唯一POST /api/v1/users/password-resets，接收resetTicket/newPassword。复用MySQL8.4、单Redis7以上及既有认证版本过滤器，Lua使用TIME和PEXPIRETIME。无新依赖、Flyway迁移、Compose服务、生产配置项或后台任务，保持ddl-auto=none。
 
-Lua使用TIME、PEXPIRETIME及原子操作，要求单Redis实例及Redis7以上。沿用发码单实例队列前提。Redis持久化、故障转移不能回放已消费凭据或回滚认证状态。所有应用实例须使用相同认证版本校验，不以应用缓存延迟授予旧版本访问。
+沿用发码单实例队列部署前提。Redis持久化及故障转移须避免回放已消费票据或回滚认证状态，各实例统一执行认证版本校验。生产HTTPS，系统、Redis、MySQL保持可信时钟。Redis TIME授权额度与票据期限，MySQL UTC_TIMESTAMP(6)维护updated_at。
 
-Redis TIME决定额度与凭据期限，MySQL UTC_TIMESTAMP(6)决定更新时间。操作系统、Redis、MySQL保持可信时钟，监控时钟异常。生产HTTPS，凭据、请求体、邮件正文与Redis值不写日志或公开指标。
+## 契约切换
 
-## 状态与保留
+现行流程依次调用以下接口。
 
-发码ACTIVE结构及队列不变。确认仅管理原challenge与对应active指针，新增music:auth:password-reset-confirmation:ip:<digest>和user:<id>额度HASH。各自固定60秒10次、900秒10次，以原到期时间自动删除，拒绝不延长。不要通过删除键恢复额度或手工恢复验证码。
+| 步骤 | 接口 | 请求与成功 |
+| --- | --- | --- |
+| 1 | POST /api/v1/users/password-reset-requests | email，202返回challengeId/expiresAt |
+| 2 | POST /api/v1/users/password-reset-verifications | challengeId/code，200返回resetTicket/expiresAt |
+| 3 | POST /api/v1/users/password-resets | resetTicket/newPassword，204空正文 |
 
-版本用Long规范十进制字符串传Lua，禁止转换成浮点数。数据库条件更新匹配ID、原始邮箱、角色、摘要、版本，单事务只修改密码摘要、token_version、updated_at。
+本轮采用直接切换。协调所有应用实例版本，避免同一路径新旧字段契约混用。第三步独立实现审核通过且新版本部署可用后，前端整体切换，票据在内存暂存。旧challengeId/code/newPassword请求400 VALIDATION_FAILED，格式拒绝发生在业务额度准入前。
 
-## 统一账户拒绝与可用性取舍
+第二步已签发且尚有效的schema 1票据兼容新版第三步。旧验证码仍可按原期限在第二步兑换。切换保留第二步在途额度，新第三步completion额度从首次准入建立自身窗口。
 
-设计审核NOTE-002已核实。公开申请返回challengeId，持有真实有效标识者可以通过提交消耗绑定账户额度，合法用户可能在当前原900秒窗口的剩余时间内得到统一400。重新申请不会恢复账户额度。
+## 接口、额度键与错误码
 
-账户额度在DB绑定复核前扣取，之后发现绑定已变化也不退款。验证码五次错误上限与账户十次提交额度属于不同计数，不应将五错误认为账户窗口最多五次。跨多次重发可累计耗尽账户额度。
+| 接口 | Redis额度前缀 | 限流/不可用错误族 |
+| --- | --- | --- |
+| password-reset-requests | music:auth:password-reset:，发码各维度 | PASSWORD_RESET_REQUEST_* |
+| password-reset-verifications | music:auth:password-reset-confirmation:，ip/user | PASSWORD_RESET_VERIFICATION_* |
+| password-resets | music:auth:password-reset-completion:，ip/user | PASSWORD_RESET_CONFIRMATION_* |
 
-单个窗口最多900秒，届原TTL自然恢复。重复攻击可能在后续窗口再次触发，受既有发码邮箱60秒冷却及每UTC日10次约束，不能将单窗上限解读为永远不会再次发生。不调整本轮已确认额度，无新增清额或恢复接口，无人工删键放行流程。
+第二、三步各自IP60秒10次、账户900秒10次。quota HASH恰count/resetAtMs，两键各依自身首次准入确定的PEXPIRETIME自动过期。重发、换设备、签新票或登录保留原账户额度，已准入操作后续失败继续计数。
 
-客户端只看到统一PASSWORD_RESET_VERIFICATION_FAILED，不返回账户原因、等待时间、scope或剩余次数。仅IP限流为429及Retry-After。预验证码普通失败执行一次同源成本伪BCrypt比较，IP拒绝及存储异常不比较，不用sleep填时，不声称完全等时。
+仅IP拒绝429及Retry-After，按原窗口剩余毫秒向上取整秒数。账户额度拒绝统一400 PASSWORD_RESET_VERIFICATION_FAILED，隐藏账户、拒绝层、等待与次数。第三步在完整票据后按可信账户扣额，假票仅耗IP。有效票据持有者可能消耗账户窗口，合法用户在剩余窗口内也会统一400，重复消耗可能在后续窗口再发生，按原TTL恢复。
 
-## 结果未知
+第二步保留验证码五错失效和原猜码窗口。第三步通过随机票据授权，密码比较在票据/额度/prepared绑定通过后执行。两步额度及用途分别维护。
 
-- Redis额度或计错执行后丢回复会返回503，可能已扣额/计错，不重试、不退款。
-- 消费执行后丢回复会返回503，不进入MySQL写事务，凭据可能已删除。禁止恢复码。
-- 消费明确成功后数据库开始失败或真实回滚，行保持旧值，码已消费，需重新申请。
-- MySQL实际提交后确认丢失，503时可能已生效。通过新密码走正常登录核实，无法仅凭503或重试400判断首次未提交。
-- 消费于原期限内成功，事务提交可跨期限。重试旧申请不重放204。
+## 票据状态与原子消费
 
-成功递增目标账户版本，使旧Token及旧角色选择Ticket不能升级。其他账户有效Token保持有效。不承诺终止已通过认证的在途请求。
+沿用music:auth:password-reset-ticket:active:<userId> STRING和ticket:<digest> HASH，schema=1恰10字段。仅存SHA-256摘要及完整账户绑定，每账户最新一张票；expiresAt恰为Redis签发时间加300000毫秒，两键PEXPIRETIME相等，等于到期端点即失效。
+
+按摘要读取和原子消费均核验完整字段、归属、类型、原始/规范化邮箱关联及期限。消费匹配已读完整不可变快照，仅删除本票及匹配指针。新票先签发时旧消费400保留新票；旧票先消费时已获资格的原SQL可继续，新签发但绑定旧版本的票随成功版本递增失效。
+
+按摘要首次缺记录返回400，此时无法定位未知账户指针；现存记录缺指针可定位503。已知消费快照能定位双键半状态，返回503。自然到期或消费后的双键消失为400。损坏、无TTL、TTL矛盾或非法字段均503，保留现场，原TTL负责健康状态清理。
+
+版本使用Long规范十进制字符串，经Java精确解析，Lua避免浮点转换。Long.MAX_VALUE票据可读取，提交在消费前503。大于2^53的版本仍精确绑定与递增。
+
+## 数据库及失败边界
+
+短只读事务读取prepared并核对ID、原始邮箱、角色、版本与密码摘要。事务结束后计算密码。相同密码400 NEW_PASSWORD_SAME_AS_OLD及摘要故障503保留原票期限，已扣额度保留。新密码8至72位可打印ASCII、非全空格、首尾空格原值保留。
+
+只有明确Redis消费成功后进入短MySQL写事务。使用原prepared执行一次专用CAS，匹配ID、binary原始邮箱/角色/旧密码摘要及精确版本，只修改password_token、token_version加1及updated_at。0行400，1行成功，其他500回滚。用户名并发变更可保留。
+
+| 故障 | 结果 |
+| --- | --- |
+| 准入操作实际执行后丢回复 | 503，已扣计数保留 |
+| Redis消费未执行或执行后丢回复 | 503，本次零写事务和更新SQL，票可能已消费 |
+| 明确消费后写事务开始/执行失败或真实回滚 | 503，票保持已消费，行按真实事务结果保留 |
+| MySQL实际提交后确认丢失 | 503，可能已改密及撤销旧登录 |
+| 期限内明确消费，数据库提交跨期限 | 可完成原prepared更新 |
+
+服务端自动消费/SQL重试、恢复票、清额、退款及204重放均关闭。Lua运行时错误没有数据库式回滚承诺，未知回复按503关闭授权。503或重试400都不足以判断首次是否改密，客户端尝试新密码正常登录核实，必要时重新申请邮件验证码。
+
+成功递增版本使目标全部旧JWT及旧角色选择票在后续认证中失效，前端清理旧登录并走原登录/角色选择流程。他账户有效Token按原规则使用。已通过认证的在途请求遵守既有执行边界。
 
 ## 观测与核实
 
-保留traceId。503日志使用PasswordResetDiagnostics脱敏原因与栈，禁止打印密码、验证码、申请标识、摘要或邮件正文。原Actuator暴露范围保持health、info、metrics。故障排查使用已有应用、Redis、数据库健康及安全审计信息，避免将账户层拒绝原因返回客户端。
+SLF4J保留traceId，异常经PasswordResetDiagnostics脱敏。请求体、密码、验证码、票、摘要、内部版本、Redis键及邮件内容排除在日志与公开指标外，Actuator保持health、info、metrics。
 
-Redis或MySQL故障修复后，等待原窗口自然结束或重新申请有效凭据。不要增加自动SQL重试、重新读取prepared快照后更新、恢复ACTIVE或重发204行为。
+按上表的接口/额度前缀/HTTP错误族定位问题。共享TicketStore沿用VERIFICATION不可用异常，由第三步服务边界安全转换为CONFIRMATION不可用，既有第二步调用保持原行为。
+
+故障修复后按原窗口与期限恢复，消费后的用户通过重新申请建立新证明。排查使用已有服务、Redis及DB健康信息，内部账户限额原因保留在服务端边界。

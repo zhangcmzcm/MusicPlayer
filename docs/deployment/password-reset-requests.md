@@ -2,7 +2,7 @@
 
 ## 依赖与配置
 
-唯一公开入口POST /api/v1/users/password-reset-requests；后续重置确认接口不在本交付范围。无新表、迁移、依赖或Compose服务，不改变既有验证码用途或JWT策略。
+原发码交付入口为POST /api/v1/users/password-reset-requests。现行三步流程随后调用POST /api/v1/users/password-reset-verifications取得resetTicket，再调用POST /api/v1/users/password-resets提交resetTicket/newPassword。发码服务仍只负责原申请职责。无新表、迁移、依赖或Compose服务，不改变既有验证码用途或JWT策略。
 
 要求单Redis实例、Redis≥7，支持TIME/PEXPIREAT/PEXPIRETIME及Lua。所有实例必须连接同一业务Redis数据库；不支持Cluster跨槽。应配置符合部署需求的Redis持久化/备份及容量策略；业务键不应被任意逐出。入队成功不构成永久投递保证，Redis丢失可能使已受理任务消失，应用不会从数据库恢复投递。
 

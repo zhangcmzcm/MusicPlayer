@@ -6,7 +6,7 @@
 
 公开接口，USER与ADMIN同规则，无需旧密码、登录或近期auth_time。目标来自服务端ACTIVE绑定，主动他账户有效Bearer不改变目标，主动无效/过期/撤销Bearer仍受原安全链拒绝。
 
-本接口交付三步流程的第二步，成功授予一次性设置新密码资格。前端待第三步resetTicket/newPassword改造也审核通过后整体切换。当前POST /api/v1/users/password-resets仍使用challengeId/code/newPassword原组合契约。
+本接口是三步流程的第二步，成功授予一次性设置新密码资格。第三步POST /api/v1/users/password-resets接收resetTicket/newPassword。前端在三步版本部署及第三步独立实现审核通过后整体切换，旧challengeId/code/newPassword提交返回400 VALIDATION_FAILED。
 
 ## 请求与校验
 
@@ -47,7 +47,7 @@ Cache-Control: no-store
 
 ## 额度与验证码
 
-与当前旧组合提交接口共用IP固定60秒10次、账户固定900秒10次预算。格式通过先扣remoteAddr的IP摘要额度，完整ACTIVE后扣绑定账户额度，之后读取DB及比较验证码。未知/未激活/假申请扣IP但不创建用户键。
+本步骤IP固定60秒10次、账户固定900秒10次，保留原confirmation命名空间。第三步使用completion命名空间及独立同额度窗口，两步分别计数。格式通过先扣remoteAddr的IP摘要额度，完整ACTIVE后扣绑定账户额度，之后读取DB及比较验证码。未知/未激活/假申请扣IP但不创建用户键。
 
 获准的前层及后续失败不退款，当前拒绝层不增计数、不延长窗口。重发、设备/Token变化不清额。仅IP拒绝429与Retry-After，剩余秒数由原Redis窗口向上取整且至少1。账户拒绝与正常验证失败统一400，没有等待、拒绝层、scope或剩余次数。
 
@@ -74,21 +74,13 @@ Cache-Control: no-store
 
 ## 接口、额度键与错误码对照
 
-当前阶段如下，键前缀是内部兼容命名，按接口归属选择HTTP错误码。第二步与旧组合入口共享confirmation键。
+切换后的三方对应如下。键前缀沿用内部命名，按接口确定HTTP错误码。
 
 | 接口 | Redis额度键前缀 | 限流/不可用错误族 |
 | --- | --- | --- |
 | POST /api/v1/users/password-reset-requests | music:auth:password-reset:（email-cooldown/email-daily/ip） | PASSWORD_RESET_REQUEST_* |
 | POST /api/v1/users/password-reset-verifications | music:auth:password-reset-confirmation:（ip/user） | PASSWORD_RESET_VERIFICATION_* |
-| POST /api/v1/users/password-resets，当前组合契约 | music:auth:password-reset-confirmation:（ip/user） | PASSWORD_RESET_CONFIRMATION_* |
-
-最终阶段规划如下，第三步新契约及额度为后续交付。
-
-| 接口 | Redis额度键前缀 | 限流/不可用错误族 |
-| --- | --- | --- |
-| POST /api/v1/users/password-reset-requests | music:auth:password-reset:（email-cooldown/email-daily/ip） | PASSWORD_RESET_REQUEST_* |
-| POST /api/v1/users/password-reset-verifications | music:auth:password-reset-confirmation:（ip/user） | PASSWORD_RESET_VERIFICATION_* |
-| POST /api/v1/users/password-resets，后续resetTicket/newPassword | music:auth:password-reset-completion:（ip/user） | PASSWORD_RESET_CONFIRMATION_* |
+| POST /api/v1/users/password-resets，resetTicket/newPassword | music:auth:password-reset-completion:（ip/user） | PASSWORD_RESET_CONFIRMATION_* |
 
 上述错误族指RATE_LIMITED/UNAVAILABLE，账户及普通验证失败统一PASSWORD_RESET_VERIFICATION_FAILED。实际票数据位于music:auth:password-reset-ticket:active:<userId>与ticket:<digest>，用途和额度键分开。
 
