@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿用项目协议，由Codex在本会话唯一实现，Claude独立只读审核。上述执行子技能未列为可用，执行时按本会话原生流程逐任务推进。用户已确认开始，任务1至6已完成，进入任务7完整验证与独立审核材料准备。
+> 执行方式沿用项目协议，由Codex在本会话唯一实现，Claude独立只读审核。上述执行子技能未列为可用，执行时按本会话原生流程逐任务推进。用户已确认开始，任务1至7自验及审核材料已完成，等待独立实现审核。
 
 **Goal:** 将唯一POST /api/v1/users/password-resets直接切换为resetTicket/newPassword，完成三步找回密码闭环及目标账户全部旧登录失效。
 
@@ -207,14 +207,14 @@ verify(users, never()).resetPasswordIfSnapshotMatches(anyInt(), any(), anyString
 
 **Interfaces:** 审核仅POST /api/v1/users/password-resets，基线main @ 646c1e6及本轮冻结commit，保留设计第1/3轮与后续实现审核各自事实。
 
-- [ ] **7.1 运行完整验证。** PowerShell先设置$env:MINIO_INTEGRATION_TESTS = "true"，执行.\gradlew.bat cleanTest check --console=plain。等待实际结束，记录退出码、BUILD状态、耗时，从本次JUnit XML聚合类数及通过/失败/错误/跳过；列出任何跳过类#方法和原因，必要容器零跳过后才可交付。
-- [ ] **7.2 执行最终范围检查。** git diff --check、git status --short、基线到HEAD文件清单及untracked；核对未动已执行迁移、SQL/配置/依赖、无秘密与TODO/占位；核实旧测试迁移方法对应关系、两份第二步文档已切最终语义。XML数字须与本次源代码冻结相符。
-- [ ] **7.3 编写审核材料。** 按AGENTS第14节含唯一Method+Path、权限、声称行为、全部文件含untracked、无迁移、新旧契约、API/部署路径、实际命令与精确数字、基线/冻结commit、安全curl、默认项及故障边界。写入设计NOTE-001六列表，记录已采纳待实现审核复核；跨任务Reader NOTE-001继续排期，原编号与非阻断分级不变。
-- [ ] **7.4 提交材料并交用户转独立审核。** 中文提交“docs: 记录密码重置三步闭环验证与审核材料”。汇报完成的是本轮实现自验，独立accepted到达后才登记接口审核完成，按用户当时授权决定推送。
+- [x] **7.1 运行完整验证。** PowerShell先设置$env:MINIO_INTEGRATION_TESTS = "true"，执行.\gradlew.bat cleanTest check --console=plain。等待实际结束，记录退出码、BUILD状态、耗时，从本次JUnit XML聚合类数及通过/失败/错误/跳过；列出任何跳过类#方法和原因，必要容器零跳过后才可交付。
+- [x] **7.2 执行最终范围检查。** git diff --check、git status --short、基线到HEAD文件清单及untracked；核对未动已执行迁移、SQL/配置/依赖、无秘密与TODO/占位；核实旧测试迁移方法对应关系、两份第二步文档已切最终语义。XML数字须与本次源代码冻结相符。
+- [x] **7.3 编写审核材料。** 按AGENTS第14节含唯一Method+Path、权限、声称行为、全部文件含untracked、无迁移、新旧契约、API/部署路径、实际命令与精确数字、基线/冻结commit、安全curl、默认项及故障边界。写入设计NOTE-001六列表，记录已采纳待实现审核复核；跨任务Reader NOTE-001继续排期，原编号与非阻断分级不变。
+- [x] **7.4 提交材料并交用户转独立审核。** 中文提交“docs: 记录密码重置三步闭环验证与审核材料”。汇报完成的是本轮实现自验，独立accepted到达后才登记接口审核完成，按用户当时授权决定推送。
 
 ## 设计审核反馈复核与处置
 
-设计审核对象646c1e6，第1/3轮accepted，零阻断项、无剩余争议。审核方独立执行MINIO_INTEGRATION_TESTS=true cleanTest check，17分08秒、退出0、BUILD SUCCESSFUL，168类1926通过/0失败/0错误/0跳过，真实MySQL8.4/Redis/MinIO。仅复核既有基线，该数字属于设计审核基线。当前实现定向26类252通过/0失败/0错误/0跳过，完整验证在任务7记录。
+设计审核对象646c1e6，第1/3轮accepted，零阻断项、无剩余争议。审核方独立执行MINIO_INTEGRATION_TESTS=true cleanTest check，17分08秒、退出0、BUILD SUCCESSFUL，168类1926通过/0失败/0错误/0跳过，真实MySQL8.4/Redis/MinIO。仅复核既有基线，该数字属于设计审核基线。当前实现定向26类252通过/0失败/0错误/0跳过，完整172类1973通过/0失败/0错误/0跳过，源码冻结4eb9425。
 
 | 问题编号与原分级 | 问题核实及证据 | 分级判断 | 修改方向判断 | 实际处置 | 验证结果或待复核事项 |
 | --- | --- | --- | --- | --- | --- |
@@ -235,4 +235,10 @@ verify(users, never()).resetPasswordIfSnapshotMatches(anyInt(), any(), anyString
 - d43642f完成任务4，命令为cmd /c gradlew.bat test --tests "org.example.music.user.*PasswordReset*Test" --console=plain，退出0、BUILD SUCCESSFUL，4分56秒，46类369通过/0失败/0错误/0跳过。
 - 89e5068完成任务5，定向命令为cmd /c gradlew.bat test --tests "org.example.music.user.*PasswordResetConfirmation*Test" --tests "org.example.music.user.*PasswordResetTicket*Test" --tests "org.example.music.user.*PasswordResetCompletion*Test" --tests "org.example.music.user.*PasswordResetVerification*Test" --console=plain，退出0、BUILD SUCCESSFUL，3分31秒，26类252通过/0失败/0错误/0跳过。
 - 任务5首轮252项中查询故障夹具1项失败。对Spring Data抽象查询使用callRealMethod触发夹具错误，已改为真实MySQL临时表名变更制造查询失败，并以finally恢复。故障类单独17项通过，随后上述252项全量定向通过。初次失败如实保留，不计为最终通过。
-- 任务6同步六份API/部署文档，落实本轮设计NOTE-001。源码/测试冻结以本次文档提交commit为准，完整check执行及实际结果由任务7补记。
+- 任务6同步六份API/部署文档，落实本轮设计NOTE-001。源码/测试冻结4eb9425。
+
+## 最终验证与交审状态
+
+源码/测试冻结4eb9425。Windows PowerShell执行$env:MINIO_INTEGRATION_TESTS = "true"后运行.\gradlew.bat cleanTest check --console=plain，实际退出码0、BUILD SUCCESSFUL，用时16分59秒。新鲜JUnit XML汇总172类1973通过/0失败/0错误/0跳过，找回密码模块46类374项全部通过，MySQL8.4、Redis8.10.2、MinIO实跑，S3AudioStorageIntegrationTest为5通过/0失败/0错误/0跳过。
+
+源码冻结后仅登记本计划、设计状态与docs/reviews/2026-11-10-password-reset-completion-review.md，源码/测试、依赖和Compose相对冻结点零差异。完整文件清单包含新增与删除，旧测试迁移及首轮故障夹具修正均在审核材料披露。当前独立实现审核待进行，自验通过与设计accepted分别记录。

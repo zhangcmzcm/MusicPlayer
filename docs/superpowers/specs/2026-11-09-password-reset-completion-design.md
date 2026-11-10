@@ -2,7 +2,7 @@
 
 日期为2026-11-09。设计基线为main @ feb13c9，本地与origin/main同步，开始设计时工作区干净。
 
-本文件仅设计POST /api/v1/users/password-resets的第三步改造。用户已逐节确认请求响应、处理顺序、并发与故障、额度与错误、组件与验证范围。原始646c1e6已获第1/3轮书面设计审核accepted，零阻断项，用户已确认实施计划，当前任务1至6实现及定向验证完成，进入完整check及实现审核材料准备。
+本文件仅设计POST /api/v1/users/password-resets的第三步改造。用户已逐节确认请求响应、处理顺序、并发与故障、额度与错误、组件与验证范围。原始646c1e6已获第1/3轮书面设计审核accepted，零阻断项，用户已确认实施计划，当前实现与完整自验已完成，源码/测试冻结4eb9425，完整172类1973通过/0失败/0错误/0跳过，独立实现审核待进行。
 
 ## 1. 目标与现状
 
@@ -249,3 +249,9 @@ curl -i --request POST 'https://music.example.com/api/v1/users/password-resets' 
 | 本轮设计NOTE-001 非阻断 | 成立，第二步API第9/50/77-91行及部署第7/13-29行仍有旧组合入口共用预算、completion后续交付等阶段性表述 | 认可，文档同步建议，无当前设计阻断 | 认可，计划明确两份文档并改为最终状态即可 | 已在2026-11-10实施计划文件地图及任务6纳入verify-password-reset.md与password-reset-verifications.md | 任务6已同步两份第二步API/部署文档，旧请求400、独立额度及实际OpenAPI定向测试通过，待独立实现审核复核 |
 
 计划核对还发现第一步request-password-reset.md第35行及password-reset-requests.md第5行的后续交付表述，任务6同步其现行流程关系，保留原发码交付范围的历史语义。以上均为本接口切换所需的流程文档同步，第一、二步业务契约保持兼容。前轮Reader实现NOTE-001继续排期，原编号、非阻断分级及未关闭状态保持。
+
+### 实现自验状态
+
+用户确认计划后已完成第三步两字段切换、票据读取消费、独立额度、prepared及原SQL衔接、旧测试迁移与六份API/部署同步。源码/测试冻结4eb9425，最终定向26类252通过/0失败/0错误/0跳过；MINIO_INTEGRATION_TESTS=true cleanTest check退出0、BUILD SUCCESSFUL，用时16分59秒，172类1973通过/0失败/0错误/0跳过，MySQL、Redis、MinIO均实跑。
+
+本轮设计NOTE-001文档同步已实际落实，待独立实现审核复核。前轮Reader复用NOTE-001继续排期。首次实现审核材料为docs/reviews/2026-11-10-password-reset-completion-review.md，自验结果与独立审核结论分开登记。
