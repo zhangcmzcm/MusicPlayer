@@ -39,14 +39,4 @@ public class PasswordResetConfirmationSnapshotReader {
             throw new PasswordResetConfirmationUnavailableException(failure);
         }
     }
-    public Optional<PasswordResetPreparedSnapshot> prepare(PasswordResetChallengeSnapshot challenge) {
-        try {
-            return transaction.execute(status -> users.findPasswordResetPreparedSnapshot(challenge.account().userId()).filter(prepared -> {
-                var account = new PasswordResetAccountSnapshot(prepared.userId(),prepared.rawEmail(),prepared.role(),prepared.tokenVersion());
-                if (!rules.matches(challenge,account)) return false;
-                rules.requirePasswordHash(prepared.passwordHash());
-                return true;
-            }));
-        } catch (DataAccessException | TransactionException failure) { throw new PasswordResetConfirmationUnavailableException(failure); }
-    }
 }

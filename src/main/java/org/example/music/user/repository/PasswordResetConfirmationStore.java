@@ -18,7 +18,7 @@ public class PasswordResetConfirmationStore {
     public static final String PREFIX = "music:auth:password-reset-confirmation:";
     private static final String SOURCE = PasswordResetRequestStore.PREFIX;
     private static final RedisScript<List> IP = script("admit-ip"), ACCOUNT = script("admit-account"),
-            READ = script("read"), FAIL = script("fail"), CONSUME = script("consume");
+            READ = script("read"), FAIL = script("fail");
     private final StringRedisTemplate redis;
     private final PasswordResetConfirmationRules rules;
 
@@ -72,7 +72,6 @@ public class PasswordResetConfirmationStore {
         } catch (RuntimeException failure) { throw new PasswordResetConfirmationUnavailableException(failure); }
     }
     public void recordFailure(PasswordResetChallengeSnapshot snapshot) { mutate(FAIL, snapshot); }
-    public boolean consume(PasswordResetChallengeSnapshot snapshot) { return mutate(CONSUME, snapshot); }
     private boolean mutate(RedisScript<List> script, PasswordResetChallengeSnapshot snapshot) {
         rules.validateChallenge(snapshot);
         var account = snapshot.account();

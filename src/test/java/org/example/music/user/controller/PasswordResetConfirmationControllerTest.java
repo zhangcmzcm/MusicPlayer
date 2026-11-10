@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(PasswordResetConfirmationController.class)
 @Import({SecurityConfig.class,ClientIpResolver.class,PasswordResetConfirmationRequestReader.class}) @ActiveProfiles("test")
 class PasswordResetConfirmationControllerTest {
-    static final String PATH="/api/v1/users/password-resets",BODY="{\"challengeId\":\""+"A".repeat(43)+"\",\"code\":\"012345\",\"newPassword\":\" new-pass \"}";
+    static final String PATH="/api/v1/users/password-resets",BODY="{\"resetTicket\":\""+"A".repeat(43)+"\",\"newPassword\":\" new-pass \"}";
     @Autowired MockMvc mvc;
     @MockitoBean PasswordResetConfirmationService service;
     @MockitoBean UserAuthorizationStateService authorizationState;
@@ -28,7 +28,7 @@ class PasswordResetConfirmationControllerTest {
         mvc.perform(post(PATH).contentType("application/json").content(BODY).header("X-Forwarded-For","forged"))
                 .andExpect(status().isNoContent()).andExpect(content().string("")).andExpect(header().string("Cache-Control","no-store"))
                 .andExpect(header().doesNotExist("Location"));
-        verify(service).reset(eq(new PasswordResetConfirmationRequest("A".repeat(43),"012345"," new-pass ")),eq("127.0.0.1"));
+        verify(service).reset(eq(new PasswordResetConfirmationRequest("A".repeat(43)," new-pass ")),eq("127.0.0.1"));
         mvc.perform(get(PATH)).andExpect(status().isUnauthorized());
     }
     @Test void should_reject_invalid_request_before_service() throws Exception {

@@ -27,16 +27,16 @@ class PasswordResetConfirmationSnapshotReaderTest {
     @Test void should_preserve_raw_email_and_hash_without_rebinding() {
         var expected=new PasswordResetPreparedSnapshot(1,account.email(),UserRole.USER,7,hash);
         when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(expected));
-        assertEquals(expected,reader.prepare(challenge).orElseThrow()); assertEquals("ALICE@example.com",reader.prepare(challenge).orElseThrow().rawEmail());
+        assertEquals(expected,reader.prepareTicket(new PasswordResetTicketSnapshot("A".repeat(43),challenge.emailDigest(),challenge.email(),account,new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)))).orElseThrow()); assertEquals("ALICE@example.com",reader.prepareTicket(new PasswordResetTicketSnapshot("A".repeat(43),challenge.emailDigest(),challenge.email(),account,new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)))).orElseThrow().rawEmail());
     }
     @Test void should_return_empty_for_missing_or_changed_binding() {
         when(users.findPasswordResetSnapshotById(1)).thenReturn(Optional.empty()); assertFalse(reader.isCurrent(challenge));
         when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(new PasswordResetPreparedSnapshot(1,"alice@example.com",UserRole.USER,7,hash)));
-        assertTrue(reader.prepare(challenge).isEmpty());
+        assertTrue(reader.prepareTicket(new PasswordResetTicketSnapshot("A".repeat(43),challenge.emailDigest(),challenge.email(),account,new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)))).isEmpty());
     }
     @Test void should_reject_bad_hash_or_transaction_start_and_end_failure() {
         when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(new PasswordResetPreparedSnapshot(1,account.email(),UserRole.USER,7,"bad")));
-        assertThrows(PasswordResetConfirmationUnavailableException.class,()->reader.prepare(challenge));
+        assertThrows(PasswordResetConfirmationUnavailableException.class,()->reader.prepareTicket(new PasswordResetTicketSnapshot("A".repeat(43),challenge.emailDigest(),challenge.email(),account,new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)))));
         doThrow(new CannotCreateTransactionException("secret")).when(manager).getTransaction(any());
         assertThrows(PasswordResetConfirmationUnavailableException.class,()->reader.isCurrent(challenge));
         doReturn(tx).when(manager).getTransaction(any()); when(users.findPasswordResetSnapshotById(1)).thenReturn(Optional.of(account));

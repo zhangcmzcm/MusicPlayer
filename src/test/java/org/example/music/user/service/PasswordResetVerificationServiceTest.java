@@ -36,7 +36,7 @@ class PasswordResetVerificationServiceTest {
         order.verify(reader).isCurrent(challenge);order.verify(verifier).matches("012345","hash");order.verify(reader).isCurrent(challenge);
         order.verify(tickets).readCurrent(42);order.verify(tickets).exchange(eq(challenge),eq(Optional.empty()),digest.capture());
         assertEquals(PasswordResetIdentifiers.digest(response.resetTicket()),digest.getValue());assertFalse(response.toString().contains(response.resetTicket()));
-        org.mockito.Mockito.verify(codes,never()).consume(any());org.mockito.Mockito.verify(verifier,never()).reject(anyString());
+        org.mockito.Mockito.verify(verifier,never()).reject(anyString());
     }
     @Test void should_use_one_dummy_for_missing_application() {
         when(codes.read(anyString())).thenReturn(Optional.empty());assertThrows(PasswordResetVerificationFailedException.class,this::verify);
@@ -73,7 +73,7 @@ class PasswordResetVerificationServiceTest {
     @Test void should_propagate_ticket_failure_without_old_consume_or_restore() {
         doThrow(new PasswordResetVerificationUnavailableException(null)).when(tickets).exchange(any(),any(),anyString());
         assertThrows(PasswordResetVerificationUnavailableException.class,this::verify);org.mockito.Mockito.verify(tickets,times(1)).exchange(any(),any(),anyString());
-        org.mockito.Mockito.verify(codes,never()).consume(any());org.mockito.Mockito.verify(verifier,never()).reject(anyString());
+        org.mockito.Mockito.verify(verifier,never()).reject(anyString());
     }
     @Test void should_sanitize_unexpected_error() {
         doThrow(new IllegalStateException("private-ticket")).when(tickets).readCurrent(42);

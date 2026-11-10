@@ -69,11 +69,11 @@ class PasswordResetConfirmationStoreIntegrationTest {
         }
         assertTrue(store.admitAccount(42)); assertEquals("1",redis.opsForHash().get(Q+"user:42","count"));
     }
-    @Test void should_preserve_long_version_and_allow_consume_after_nonterminal_wrong_attempt() {
+    @Test void should_preserve_long_version_after_nonterminal_wrong_attempt() {
         var snapshot=create(); assertEquals(Long.MAX_VALUE,snapshot.account().tokenVersion());
         String key=P+"challenge:"+snapshot.digest(); long end=expiry(key);
         store.recordFailure(snapshot); assertEquals("1",redis.opsForHash().get(key,"attempts")); assertEquals(end,expiry(key));
-        assertTrue(store.consume(snapshot)); assertFalse(store.consume(snapshot)); assertTrue(store.read(snapshot.digest()).isEmpty());
+        assertEquals(1,store.read(snapshot.digest()).orElseThrow().attempts());
     }
     @Test void should_invalidate_fifth_failure_and_preserve_pending_new_request() {
         var snapshot=create();
@@ -82,24 +82,21 @@ class PasswordResetConfirmationStoreIntegrationTest {
         producer.enqueue(task,1000);
         var pending=redis.opsForValue().get(P+"pending:"+snapshot.emailDigest());
         for(int i=0;i<5;i++) store.recordFailure(snapshot);
-        assertFalse(store.consume(snapshot)); assertEquals(pending,redis.opsForValue().get(P+"pending:"+snapshot.emailDigest()));
+        assertTrue(store.read(snapshot.digest()).isEmpty()); assertEquals(pending,redis.opsForValue().get(P+"pending:"+snapshot.emailDigest()));
         assertTrue(Boolean.TRUE.equals(redis.hasKey(P+"task:"+task.challengeDigest())));
     }
     @Test void should_not_touch_new_active_when_old_mutation_arrives() {
         var old=create(); var fresh=create();
-        store.recordFailure(old); assertFalse(store.consume(old));
+        store.recordFailure(old); assertTrue(store.read(old.digest()).isEmpty());
         assertEquals(fresh.digest(),redis.opsForValue().get(P+"active:"+fresh.emailDigest()));
         assertEquals(0,store.read(fresh.digest()).orElseThrow().attempts());
     }
-    @Test void should_consume_once_across_store_instances() throws Exception {
-        var snapshot=create(); var other=new PasswordResetConfirmationStore(redis,rules);
-        try(var pool=Executors.newFixedThreadPool(2)) {
-            var start=new CountDownLatch(1);
-            var a=pool.submit(()->{start.await();return store.consume(snapshot);});
-            var b=pool.submit(()->{start.await();return other.consume(snapshot);}); start.countDown();
-            assertNotEquals(a.get(5,TimeUnit.SECONDS),b.get(5,TimeUnit.SECONDS));
-        }
+    @Test void should_preserve_fixed_deadline_after_nonterminal_failure() {
+        var snapshot=create();long ending=expiry(P+"challenge:"+snapshot.digest());
+        store.recordFailure(snapshot);assertEquals(ending,expiry(P+"challenge:"+snapshot.digest()));
+        assertEquals(1,store.read(snapshot.digest()).orElseThrow().attempts());
     }
+
     @ParameterizedTest @ValueSource(strings={"extra","attempts","version","ttl","pointer","half"})
     void should_fail_closed_on_corrupt_active(String damage) {
         var snapshot=create(); String key=P+"challenge:"+snapshot.digest();

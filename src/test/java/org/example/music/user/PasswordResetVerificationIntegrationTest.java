@@ -43,29 +43,29 @@ class PasswordResetVerificationIntegrationTest extends PasswordResetVerification
         String secret=issuedTicket(result);assertEquals(digest(secret),tickets.readCurrent(b.getId()).orElseThrow().digest());assertTrue(tickets.readCurrent(a.getId()).isEmpty());
         assertEquals(beforeA,row(a));assertEquals(beforeB,row(b));assertEquals(200,access(bearer));
     }
-    @Test void should_share_original_ip_window_with_legacy_entry_and_map_each_error_family() throws Exception {
-        var fake=new Ready(new Accepted(PasswordResetIdentifiers.generate(),Instant.now().plusSeconds(300)),"012345");long ending=0;
-        for(int i=0;i<10;i++) {
-            assertProblem(i%2==0?verifyCode(fake):confirm(fake,"new-password"),400,"PASSWORD_RESET_VERIFICATION_FAILED");
-            if(i==0)ending=expiry("music:auth:password-reset-confirmation:ip:"+digest("127.0.0.1"));
-        }
-        var current=verifyCode(fake);assertProblem(current,429,"PASSWORD_RESET_VERIFICATION_RATE_LIMITED");
-        var legacy=confirm(fake,"new-password");assertProblem(legacy,429,"PASSWORD_RESET_CONFIRMATION_RATE_LIMITED");
+    @Test void should_keep_verification_and_completion_ip_windows_independent() throws Exception {
+        var fake=new Ready(new Accepted(PasswordResetIdentifiers.generate(),Instant.now().plusSeconds(300)),"012345");
+        var ticket=new Issued(PasswordResetIdentifiers.generate(),Instant.now().plusSeconds(300));
+        for(int i=0;i<10;i++) assertProblem(verifyCode(fake),400,"PASSWORD_RESET_VERIFICATION_FAILED");
+        long ending=expiry("music:auth:password-reset-confirmation:ip:"+digest("127.0.0.1"));
+        assertProblem(verifyCode(fake),429,"PASSWORD_RESET_VERIFICATION_RATE_LIMITED");
+        assertTrue(redis.keys("music:auth:password-reset-completion:*").isEmpty());
+        for(int i=0;i<10;i++) assertProblem(confirm(ticket,"new-password"),400,"PASSWORD_RESET_VERIFICATION_FAILED");
+        assertProblem(confirm(ticket,"new-password"),429,"PASSWORD_RESET_CONFIRMATION_RATE_LIMITED");
         assertEquals(ending,expiry("music:auth:password-reset-confirmation:ip:"+digest("127.0.0.1")));
         assertEquals("10",redis.opsForHash().get("music:auth:password-reset-confirmation:ip:"+digest("127.0.0.1"),"count"));
-        assertTrue(Long.parseLong(current.getResponse().getHeader("Retry-After"))>=1);assertTrue(redis.keys("music:auth:password-reset-confirmation:user:*").isEmpty());
-        assertTrue(redis.keys("music:auth:password-reset-completion:*").isEmpty());
+        assertTrue(redis.keys("music:auth:password-reset-completion:user:*").isEmpty());
     }
-    @Test void should_share_account_budget_across_legacy_and_new_applications_without_revealing_wait() throws Exception {
+
+    @Test void should_keep_verification_account_budget_across_reissues_without_revealing_wait() throws Exception {
         var user=save("a@example.com",UserRole.USER);
         for(int issue=0;issue<2;issue++) {
             cooldown(user.getEmail());var live=ready(user.getEmail());String wrong=live.code().equals("000000")?"000001":"000000";
-            for(int i=0;i<5;i++) { var bad=new Ready(live.accepted(),wrong);assertProblem(i%2==0?verifyCode(bad):confirm(bad,"new-password"),400,"PASSWORD_RESET_VERIFICATION_FAILED"); }
+            for(int i=0;i<5;i++) { var bad=new Ready(live.accepted(),wrong);assertProblem(verifyCode(bad),400,"PASSWORD_RESET_VERIFICATION_FAILED"); }
         }
         clearIpWindow();cooldown(user.getEmail());var live=ready(user.getEmail());clearInvocations(hasher);
         var denied=verifyCode(live);assertProblem(denied,400,"PASSWORD_RESET_VERIFICATION_FAILED");assertNull(denied.getResponse().getHeader("Retry-After"));
         verify(hasher,times(1)).matches(eq(live.code()),anyString());assertEquals("0",activeState(live.accepted()).get("attempts"));
-        var legacy=confirm(live,"new-password");assertProblem(legacy,400,"PASSWORD_RESET_VERIFICATION_FAILED");assertNull(legacy.getResponse().getHeader("Retry-After"));
         var fake=accept("missing@example.com");assertTrue(processor.processNext());var missing=verifyCode(new Ready(fake,"000000"));assertProblem(missing,400,"PASSWORD_RESET_VERIFICATION_FAILED");
         var first=json.readTree(denied.getResponse().getContentAsString());var second=json.readTree(missing.getResponse().getContentAsString());
         assertEquals(first.properties().stream().map(Map.Entry::getKey).collect(java.util.stream.Collectors.toSet()),second.properties().stream().map(Map.Entry::getKey).collect(java.util.stream.Collectors.toSet()));
@@ -116,12 +116,16 @@ class PasswordResetVerificationIntegrationTest extends PasswordResetVerification
         }
         assertTrue(redis.keys("music:auth:password-reset-confirmation:*").isEmpty());assertEquals("0",activeState(live.accepted()).get("attempts"));
     }
-    @Test void should_keep_legacy_three_field_contract_and_reject_it_at_new_endpoint() throws Exception {
+    @Test void should_reject_legacy_body_at_both_endpoints_without_quota_and_complete_ticket_flow() throws Exception {
         var user=save("a@example.com",UserRole.USER);var live=ready(user.getEmail());
-        var invalid=mvc.perform(post(VERIFY).contentType("application/json").content(json.writeValueAsString(Map.of("challengeId",live.accepted().id(),"code",live.code(),"newPassword","new-password")))).andReturn();
-        assertProblem(invalid,400,"VALIDATION_FAILED");assertTrue(redis.keys("music:auth:password-reset-confirmation:*").isEmpty());
-        assertEquals(204,confirm(live,"new-password").getResponse().getStatus());assertEquals(1L,((Number)row(user).get("token_version")).longValue());
+        var legacy=json.writeValueAsString(Map.of("challengeId",live.accepted().id(),"code",live.code(),"newPassword","new-password"));
+        for(String path:List.of(VERIFY,CONFIRM)) assertProblem(mvc.perform(post(path).contentType("application/json").content(legacy)).andReturn(),400,"VALIDATION_FAILED");
+        assertTrue(redis.keys("music:auth:password-reset-confirmation:*").isEmpty());
+        assertTrue(redis.keys("music:auth:password-reset-completion:*").isEmpty());
+        assertEquals(204,confirm(issue(live),"new-password").getResponse().getStatus());
+        assertEquals(1L,((Number)row(user).get("token_version")).longValue());
     }
+
     @Test void should_generate_openapi_for_new_two_field_contract_and_existing_routes() throws Exception {
         var user=save("a@example.com",UserRole.USER);var result=mvc.perform(get("/v3/api-docs").header("Authorization","Bearer "+token(user))).andReturn();assertEquals(200,result.getResponse().getStatus());
         var doc=json.readTree(result.getResponse().getContentAsString());var responses=doc.get("paths").get(VERIFY).get("post").get("responses");

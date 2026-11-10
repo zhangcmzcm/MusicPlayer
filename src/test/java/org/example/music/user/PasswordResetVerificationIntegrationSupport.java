@@ -61,8 +61,22 @@ abstract class PasswordResetVerificationIntegrationSupport {
      assertEquals(accepted.digest(),active(email));
      return new Ready(accepted,sent.getLast().code());
  }
- MvcResult confirm(Ready ready,String password) throws Exception {
-     return mvc.perform(post(CONFIRM).contentType("application/json").content(json.writeValueAsString(Map.of("challengeId",ready.accepted().id(),"code",ready.code(),"newPassword",password)))).andReturn();
+ record Issued(String resetTicket,Instant expiresAt) {
+     @Override public String toString(){return "Issued[redacted]";}
+ }
+ Issued issue(Ready ready) throws Exception {
+     var result=mvc.perform(post("/api/v1/users/password-reset-verifications").contentType("application/json")
+             .content(json.writeValueAsString(Map.of("challengeId",ready.accepted().id(),"code",ready.code())))).andReturn();
+     assertEquals(200,result.getResponse().getStatus(),result.getResponse().getContentAsString());
+     var body=json.readTree(result.getResponse().getContentAsString());
+     return new Issued(body.get("resetTicket").asString(),Instant.parse(body.get("expiresAt").asString()));
+ }
+ MvcResult confirm(Issued issued,String password) throws Exception {
+     return mvc.perform(post(CONFIRM).contentType("application/json")
+             .content(json.writeValueAsString(Map.of("resetTicket",issued.resetTicket(),"newPassword",password)))).andReturn();
+ }
+ Map<Object,Object> ticketState(Issued issued) {
+     return redis.opsForHash().entries(PasswordResetTicketStore.PREFIX+"ticket:"+digest(issued.resetTicket()));
  }
  void assertProblem(MvcResult result,int status,String code) throws Exception {
      assertEquals(status,result.getResponse().getStatus(),result.getResponse().getContentAsString());

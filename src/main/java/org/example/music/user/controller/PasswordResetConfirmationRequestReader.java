@@ -36,17 +36,17 @@ public class PasswordResetConfirmationRequestReader {
                 var fields = new HashMap<String,String>();
                 while (parser.nextToken() == JsonToken.PROPERTY_NAME) {
                     String name = parser.currentName();
-                    if (!java.util.Set.of("challengeId", "code", "newPassword").contains(name)
+                    if (!java.util.Set.of("resetTicket", "newPassword").contains(name)
                             || fields.containsKey(name) || parser.nextToken() != JsonToken.VALUE_STRING) {
                         throw new PasswordResetConfirmationValidationException();
                     }
                     fields.put(name, parser.getString());
                 }
-                if (parser.currentToken() != JsonToken.END_OBJECT || parser.nextToken() != null || fields.size() != 3) {
+                if (parser.currentToken() != JsonToken.END_OBJECT || parser.nextToken() != null || fields.size() != 2) {
                     throw new PasswordResetConfirmationValidationException();
                 }
-                var result = new PasswordResetConfirmationRequest(fields.get("challengeId"), fields.get("code"), fields.get("newPassword"));
-                if (!validator.validate(result).isEmpty() || !PasswordResetIdentifiers.isCanonicalDigest(result.challengeId())) {
+                var result = new PasswordResetConfirmationRequest(fields.get("resetTicket"), fields.get("newPassword"));
+                if (!validator.validate(result).isEmpty() || !PasswordResetIdentifiers.isCanonicalDigest(result.resetTicket())) {
                     throw new PasswordResetConfirmationValidationException();
                 }
                 return result;

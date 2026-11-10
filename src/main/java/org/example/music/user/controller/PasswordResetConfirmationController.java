@@ -22,7 +22,7 @@ public class PasswordResetConfirmationController {
         this.service = service; this.reader = reader; this.ips = ips;
     }
     @PostMapping("/api/v1/users/password-resets")
-    @Operation(summary="验证找回验证码并重置密码", description="公开接口，严格UTF-8 JSON最多16384字节。仅challengeId/code/newPassword，密码8至72位可打印ASCII且非全空格，保留首尾空格。IP固定60秒10次，账户固定900秒10次。消费验证码后条件更新密码及认证版本，全部旧登录失效，不自动登录。未知结果不恢复或重试。",
+    @Operation(summary="使用重置凭据设置新密码", description="公开接口，严格UTF-8 JSON最多16384字节。仅resetTicket/newPassword，密码8至72位可打印ASCII且非全空格，保留首尾空格。独立IP固定60秒10次，账户固定900秒10次。消费重置凭据后条件更新密码及认证版本，全部旧登录失效，不自动登录。未知结果不恢复或重试。",
             requestBody=@io.swagger.v3.oas.annotations.parameters.RequestBody(required=true,content=@Content(mediaType="application/json",schema=@Schema(implementation=PasswordResetConfirmationRequest.class))))
     @ApiResponse(responseCode="204",description="已重置，请重新登录",headers=@Header(name="Cache-Control",description="no-store"),content=@Content)
     @ApiResponse(responseCode="400",description="VALIDATION_FAILED / PASSWORD_RESET_VERIFICATION_FAILED / NEW_PASSWORD_SAME_AS_OLD",content=@Content(mediaType="application/problem+json",schema=@Schema(implementation=ProblemDetail.class)))
