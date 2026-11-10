@@ -19,6 +19,7 @@ import org.springframework.stereotype.Repository;
 public class PasswordResetTicketStore {
     public static final String PREFIX = "music:auth:password-reset-ticket:";
     private static final RedisScript<List> READ = script("read-current");
+    private static final RedisScript<List> LOOKUP = script("read-by-digest");
     private static final RedisScript<List> EXCHANGE = script("exchange");
     private final StringRedisTemplate redis;
     private final PasswordResetTicketRules rules;
@@ -46,6 +47,17 @@ public class PasswordResetTicketStore {
     public Optional<PasswordResetTicketSnapshot> readCurrent(Integer userId) {
         if (userId == null || userId < 1) throw unavailable();
         var reply = execute(READ,List.of(PREFIX + "active:" + userId),userId.toString());
+        var found = parseSnapshot(reply);
+        if (found.isPresent() && !userId.equals(found.orElseThrow().account().userId())) throw unavailable();
+        return found;
+    }
+    public Optional<PasswordResetTicketSnapshot> readByDigest(String digest) {
+        if (!PasswordResetIdentifiers.isCanonicalDigest(digest)) throw unavailable();
+        var found = parseSnapshot(execute(LOOKUP,List.of(PREFIX + "ticket:" + digest),digest));
+        if (found.isPresent() && !digest.equals(found.orElseThrow().digest())) throw unavailable();
+        return found;
+    }
+    private Optional<PasswordResetTicketSnapshot> parseSnapshot(List<?> reply) {
         if (reply != null && reply.size() == 1 && Long.valueOf(1).equals(reply.getFirst())) return Optional.empty();
         if (reply == null || reply.size() != 11 || !Long.valueOf(0).equals(reply.getFirst())
                 || !reply.subList(1,11).stream().allMatch(String.class::isInstance)) throw unavailable();
@@ -53,7 +65,6 @@ public class PasswordResetTicketStore {
             if (!"1".equals(reply.get(1))) throw unavailable();
             var account = new PasswordResetAccountSnapshot(Math.toIntExact(number((String)reply.get(3))),
                     (String)reply.get(6),UserRole.valueOf((String)reply.get(7)),number((String)reply.get(8)));
-            if (!userId.equals(account.userId())) throw unavailable();
             var period = new PasswordResetTicketPeriod(Instant.ofEpochMilli(number((String)reply.get(9))),Instant.ofEpochMilli(number((String)reply.get(10))));
             var snapshot = new PasswordResetTicketSnapshot((String)reply.get(2),(String)reply.get(5),(String)reply.get(4),account,period);
             rules.validate(snapshot);
