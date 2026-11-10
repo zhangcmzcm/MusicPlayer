@@ -2,7 +2,7 @@
 
 日期为2026-11-09。设计基线为main @ feb13c9，本地与origin/main同步，开始设计时工作区干净。
 
-本文件仅设计POST /api/v1/users/password-resets的第三步改造。用户已逐节确认请求响应、处理顺序、并发与故障、额度与错误、组件与验证范围。原始646c1e6已获第1/3轮书面设计审核accepted，零阻断项，用户已确认实施计划，当前实现与完整自验已完成，源码/测试冻结4eb9425，完整172类1973通过/0失败/0错误/0跳过，独立实现审核待进行。
+本文件仅设计POST /api/v1/users/password-resets的第三步改造。用户已逐节确认请求响应、处理顺序、并发与故障、额度与错误、组件与验证范围。原始646c1e6已获第1/3轮书面设计审核accepted，零阻断项，用户已确认实施计划，当前实现与完整自验已完成，源码/测试冻结4eb9425，完整172类1973通过/0失败/0错误/0跳过，第1/3轮独立实现审核accepted，零阻断项、无新增非阻断项。
 
 ## 1. 目标与现状
 
@@ -254,4 +254,6 @@ curl -i --request POST 'https://music.example.com/api/v1/users/password-resets' 
 
 用户确认计划后已完成第三步两字段切换、票据读取消费、独立额度、prepared及原SQL衔接、旧测试迁移与六份API/部署同步。源码/测试冻结4eb9425，最终定向26类252通过/0失败/0错误/0跳过；MINIO_INTEGRATION_TESTS=true cleanTest check退出0、BUILD SUCCESSFUL，用时16分59秒，172类1973通过/0失败/0错误/0跳过，MySQL、Redis、MinIO均实跑。
 
-本轮设计NOTE-001文档同步已实际落实，待独立实现审核复核。前轮Reader复用NOTE-001继续排期。首次实现审核材料为docs/reviews/2026-11-10-password-reset-completion-review.md，自验结果与独立审核结论分开登记。
+本轮设计NOTE-001文档同步已由第1/3轮独立实现审核核实修复并关闭。前轮Reader复用NOTE-001继续排期。首次实现审核材料为docs/reviews/2026-11-10-password-reset-completion-review.md，自验结果与独立审核结论分开登记。
+
+第1/3轮独立实现审核对象20896cb，源码/测试冻结4eb9425。审核方独立完整check为1973通过/0失败/0错误/0跳过，退出0、BUILD SUCCESSFUL，用时17分06秒，真实MySQL、Redis、MinIO实跑，零阻断项、无新增非阻断项、无剩余争议。前轮Reader复用NOTE-001维持原分级与排期。用户授权核实后推送，详细报告登记见本轮审核材料。

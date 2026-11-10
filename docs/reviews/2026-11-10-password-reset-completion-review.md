@@ -2,7 +2,7 @@
 
 ## 本次接口与审核状态
 
-唯一接口为POST /api/v1/users/password-resets。原challengeId/code/newPassword切换为resetTicket/newPassword，本轮首次提交独立实现审核。书面设计646c1e6已获第1/3轮设计审核accepted，零阻断项；实现已完成自验，独立实现审核待进行。
+唯一接口为POST /api/v1/users/password-resets。原challengeId/code/newPassword切换为resetTicket/newPassword，本轮首次提交独立实现审核。书面设计646c1e6已获第1/3轮设计审核accepted，零阻断项；实现已完成自验，并获第1/3轮独立实现审核accepted，零阻断项、无新增非阻断项。
 
 ## 需求与权限
 
@@ -182,7 +182,17 @@ curl -i --request POST 'https://music.example.com/api/v1/users/password-resets' 
 
 | 问题编号与原分级 | 问题核实及证据 | 分级判断 | 修改方向判断 | 实际处置 | 验证结果或待复核事项 |
 | --- | --- | --- | --- | --- | --- |
-| 本轮设计NOTE-001 非阻断 | 成立，设计审核时第二步两份文档仍描述旧组合共用预算/completion后续交付 | 认可，切换文档同步建议，无设计阻断 | 认可，明确文档清单并同步最终状态 | 已修改verify-password-reset.md及password-reset-verifications.md，记载旧请求400、两步独立额度、completion启用，另同步第一步流程说明 | 实际OpenAPI/HTTP/独立额度定向252通过，完整1973通过/0失败/0错误/0跳过，待本轮独立实现审核复核 |
+| 本轮设计NOTE-001 非阻断 | 成立，设计审核时第二步两份文档仍描述旧组合共用预算/completion后续交付 | 认可，切换文档同步建议，无设计阻断 | 认可，明确文档清单并同步最终状态 | 已修改verify-password-reset.md及password-reset-verifications.md，记载旧请求400、两步独立额度、completion启用，另同步第一步流程说明 | 实际OpenAPI/HTTP/独立额度定向252通过，完整1973通过/0失败/0错误/0跳过；本轮独立实现审核已核实修复并关闭 |
 | 前轮独立验证接口实现NOTE-001 非阻断 | 成立，两个严格Reader引擎重复，第三步设计已评估 | 认可，维护建议，原实现已accepted | 认可共享方向，用户确认方案A聚焦本接口 | 修改现有Confirmation Reader，共享引擎继续排期 | 本轮未提取引擎，未自行标记审核关闭 |
 
 当前无已收到但未处理的实现阻断项或争议。本材料供Claude独立只读实现审核，代码修复与后续意见复核继续遵循AGENTS.md第3.1节。
+
+## 第1/3轮独立实现审核登记
+
+用户提供报告附件3b8c2342-8c54-4acf-be16-ba6d17921f11/已粘贴的文本.txt。审核对象main @ 20896cb，源码/测试冻结4eb9425，结论accepted。审核方逐项核对39份变更与旧测试迁移，零阻断项、无新增非阻断项、无剩余争议。
+
+审核方独立执行$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain，退出0、BUILD SUCCESSFUL，用时17分06秒，1973通过/0失败/0错误/0跳过，MySQL8.4、Redis、MinIO均实跑。核对当前JUnit XML为172类1973项，与独立报告及本轮自验一致。
+
+本轮设计NOTE-001（第二步文档阶段性表述）已由审核方独立核实修复并关闭。前轮独立验证接口实现NOTE-001（双Reader引擎重复）维持原非阻断分级与排期，本轮按用户确认方案A处理，未标记关闭。审核方认可真实RENAME TABLE故障夹具修正及生产异常契约。
+
+用户已授权核实后推送。本轮仅登记审核结果，源码/测试相对4eb9425零变化，未重新运行测试。前端三步整体切换及实例版本协调按部署文档另行执行。

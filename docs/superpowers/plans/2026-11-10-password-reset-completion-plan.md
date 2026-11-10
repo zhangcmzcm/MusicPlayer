@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿用项目协议，由Codex在本会话唯一实现，Claude独立只读审核。上述执行子技能未列为可用，执行时按本会话原生流程逐任务推进。用户已确认开始，任务1至7自验及审核材料已完成，等待独立实现审核。
+> 执行方式沿用项目协议，由Codex在本会话唯一实现，Claude独立只读审核。上述执行子技能未列为可用，执行时按本会话原生流程逐任务推进。用户已确认开始，任务1至7已完成，第1/3轮独立实现审核accepted，零阻断项、无新增非阻断项。
 
 **Goal:** 将唯一POST /api/v1/users/password-resets直接切换为resetTicket/newPassword，完成三步找回密码闭环及目标账户全部旧登录失效。
 
@@ -218,7 +218,7 @@ verify(users, never()).resetPasswordIfSnapshotMatches(anyInt(), any(), anyString
 
 | 问题编号与原分级 | 问题核实及证据 | 分级判断 | 修改方向判断 | 实际处置 | 验证结果或待复核事项 |
 | --- | --- | --- | --- | --- | --- |
-| 本轮设计NOTE-001 非阻断 | 成立，verify-password-reset.md:9/50/77-91及password-reset-verifications.md:7/13-29仍描述旧组合入口与第二步共享及completion后续交付 | 认可，当前设计已accepted，属切换文档同步范围建议 | 认可，明确两份第二步文档即可解决，无需修改第二步业务契约 | 采纳并列入文件地图及任务6，实施后改成旧请求400/独立额度/completion启用 | 任务6已实际同步两份第二步API/部署文档，定向真实OpenAPI与两步独立额度测试通过，待独立实现审核复核 |
+| 本轮设计NOTE-001 非阻断 | 成立，verify-password-reset.md:9/50/77-91及password-reset-verifications.md:7/13-29仍描述旧组合入口与第二步共享及completion后续交付 | 认可，当前设计已accepted，属切换文档同步范围建议 | 认可，明确两份第二步文档即可解决，无需修改第二步业务契约 | 采纳并列入文件地图及任务6，实施后改成旧请求400/独立额度/completion启用 | 任务6已实际同步两份第二步API/部署文档，定向真实OpenAPI与两步独立额度测试通过，第1/3轮独立实现审核已核实修复并关闭 |
 | 前轮独立验证接口实现NOTE-001 非阻断 | 成立，两个Reader引擎重复，已在第三步设计评估并获用户方案A确认 | 认可，维护建议且前轮实现已accepted | 认可共享方向，用户选择本轮最小切换 | 共享引擎继续排期，修改现有第三步Reader | 本轮未提取引擎，未自行标记审核关闭 |
 
 ## 计划自查与确认门禁
@@ -241,4 +241,6 @@ verify(users, never()).resetPasswordIfSnapshotMatches(anyInt(), any(), anyString
 
 源码/测试冻结4eb9425。Windows PowerShell执行$env:MINIO_INTEGRATION_TESTS = "true"后运行.\gradlew.bat cleanTest check --console=plain，实际退出码0、BUILD SUCCESSFUL，用时16分59秒。新鲜JUnit XML汇总172类1973通过/0失败/0错误/0跳过，找回密码模块46类374项全部通过，MySQL8.4、Redis8.10.2、MinIO实跑，S3AudioStorageIntegrationTest为5通过/0失败/0错误/0跳过。
 
-源码冻结后仅登记本计划、设计状态与docs/reviews/2026-11-10-password-reset-completion-review.md，源码/测试、依赖和Compose相对冻结点零差异。完整文件清单包含新增与删除，旧测试迁移及首轮故障夹具修正均在审核材料披露。当前独立实现审核待进行，自验通过与设计accepted分别记录。
+源码冻结后仅登记本计划、设计状态与docs/reviews/2026-11-10-password-reset-completion-review.md，源码/测试、依赖和Compose相对冻结点零差异。完整文件清单包含新增与删除，旧测试迁移及首轮故障夹具修正均在审核材料披露。第1/3轮独立实现审核accepted，独立完整1973通过/0失败/0错误/0跳过，17分06秒。本轮设计NOTE-001已由审核方核实关闭，前轮Reader复用意见继续排期。
+
+独立实现审核对象为20896cb，报告与逐项处置登记见审核材料。本轮仅登记审核结果，未重新运行测试，源码/测试仍冻结4eb9425，用户已授权核实后推送。
