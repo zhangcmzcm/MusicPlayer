@@ -43,4 +43,20 @@ class PasswordResetConfirmationSnapshotReaderTest {
         doThrow(new TransactionSystemException("secret")).when(manager).commit(tx);
         assertThrows(PasswordResetConfirmationUnavailableException.class,()->reader.isCurrent(challenge));
     }
+    @Test void should_prepare_ticket_only_for_exact_original_binding() {
+        var ticket=new PasswordResetTicketSnapshot("A".repeat(43),challenge.emailDigest(),challenge.email(),account,
+                new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)));
+        var expected=new PasswordResetPreparedSnapshot(1,account.email(),UserRole.USER,7,hash);
+        when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(expected));
+        assertEquals(expected,reader.prepareTicket(ticket).orElseThrow());
+        when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(new PasswordResetPreparedSnapshot(1,"alice@example.com",UserRole.USER,7,hash)));
+        assertTrue(reader.prepareTicket(ticket).isEmpty());
+    }
+    @Test void should_reject_invalid_prepared_account_fields() {
+        var ticket=new PasswordResetTicketSnapshot("A".repeat(43),challenge.emailDigest(),challenge.email(),account,
+                new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)));
+        when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(new PasswordResetPreparedSnapshot(1,account.email(),UserRole.USER,-1,hash)));
+        assertThrows(PasswordResetConfirmationUnavailableException.class,()->reader.prepareTicket(ticket));
+    }
+
 }

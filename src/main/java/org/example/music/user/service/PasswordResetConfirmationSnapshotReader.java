@@ -24,6 +24,21 @@ public class PasswordResetConfirmationSnapshotReader {
                     .filter(account -> rules.matches(challenge,account)).isPresent()));
         } catch (DataAccessException | TransactionException failure) { throw new PasswordResetConfirmationUnavailableException(failure); }
     }
+    public Optional<PasswordResetPreparedSnapshot> prepareTicket(PasswordResetTicketSnapshot ticket) {
+        try {
+            return transaction.execute(status -> users.findPasswordResetPreparedSnapshot(ticket.account().userId()).filter(prepared -> {
+                var actual = new PasswordResetAccountSnapshot(prepared.userId(), prepared.rawEmail(), prepared.role(), prepared.tokenVersion());
+                if (actual.userId() == null || actual.userId() < 1 || actual.userRole() == null || actual.tokenVersion() < 0) {
+                    throw new PasswordResetConfirmationUnavailableException(null);
+                }
+                if (!ticket.account().equals(actual)) return false;
+                rules.requirePasswordHash(prepared.passwordHash());
+                return true;
+            }));
+        } catch (DataAccessException | TransactionException failure) {
+            throw new PasswordResetConfirmationUnavailableException(failure);
+        }
+    }
     public Optional<PasswordResetPreparedSnapshot> prepare(PasswordResetChallengeSnapshot challenge) {
         try {
             return transaction.execute(status -> users.findPasswordResetPreparedSnapshot(challenge.account().userId()).filter(prepared -> {
