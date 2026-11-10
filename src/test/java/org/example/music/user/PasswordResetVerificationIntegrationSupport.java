@@ -75,9 +75,7 @@ abstract class PasswordResetVerificationIntegrationSupport {
      return mvc.perform(post(CONFIRM).contentType("application/json")
              .content(json.writeValueAsString(Map.of("resetTicket",issued.resetTicket(),"newPassword",password)))).andReturn();
  }
- Map<Object,Object> ticketState(Issued issued) {
-     return redis.opsForHash().entries(PasswordResetTicketStore.PREFIX+"ticket:"+digest(issued.resetTicket()));
- }
+
  void assertProblem(MvcResult result,int status,String code) throws Exception {
      assertEquals(status,result.getResponse().getStatus(),result.getResponse().getContentAsString());
      assertEquals(code,json.readTree(result.getResponse().getContentAsString()).get("code").asString());

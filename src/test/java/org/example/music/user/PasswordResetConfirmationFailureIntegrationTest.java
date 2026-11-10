@@ -18,18 +18,24 @@ class PasswordResetConfirmationFailureIntegrationTest extends PasswordResetConfi
     @ParameterizedTest @ValueSource(strings={"admit","account","read","consume","unexecuted"})
     void should_fail_closed_after_real_redis_operation_loses_reply(String operation) throws Exception {
         var user=save("a@example.com",UserRole.USER); var ready=issue(ready(user.getEmail())); var before=row(user);
+        clearInvocations(transactions);
         switch(operation) {
             case "admit" -> doAnswer(i->{i.callRealMethod();throw new PasswordResetConfirmationUnavailableException(null);}).when(quota).admitIp(anyString());
             case "account" -> doAnswer(i->{i.callRealMethod();throw new PasswordResetConfirmationUnavailableException(null);}).when(quota).admitAccount(anyInt());
             case "read" -> doAnswer(i->{i.callRealMethod();throw new PasswordResetVerificationUnavailableException(null);}).when(tickets).readByDigest(anyString());
             case "unexecuted" -> doThrow(new PasswordResetVerificationUnavailableException(null)).when(tickets).consume(any());
-            case "consume" -> doAnswer(i->{i.callRealMethod();throw new PasswordResetConfirmationUnavailableException(null);}).when(tickets).consume(any());
+            case "consume" -> doAnswer(i->{i.callRealMethod();throw new PasswordResetVerificationUnavailableException(null);}).when(tickets).consume(any());
         }
         var input=ready;
         assertProblem(confirm(input,"new-password"),503,"PASSWORD_RESET_CONFIRMATION_UNAVAILABLE");
         assertEquals(before,row(user)); verify(updater,never()).update(any(),anyString());
         verify(users,never()).resetPasswordIfSnapshotMatches(anyInt(),any(),anyString(),anyString(),anyLong(),anyString());
         assertEquals("1",redis.opsForHash().get("music:auth:password-reset-completion:ip:"+digest("127.0.0.1"),"count"));
+        if(operation.equals("consume") || operation.equals("unexecuted")) {
+            var definitions=org.mockito.ArgumentCaptor.forClass(TransactionDefinition.class);
+            verify(transactions,atLeastOnce()).getTransaction(definitions.capture());
+            assertTrue(definitions.getAllValues().stream().allMatch(TransactionDefinition::isReadOnly));
+        }
         if(operation.equals("consume")) { assertTrue(ticketState(ready).isEmpty()); verify(tickets,times(1)).consume(any()); }
         else assertFalse(ticketState(ready).isEmpty());
     }
@@ -49,6 +55,9 @@ class PasswordResetConfirmationFailureIntegrationTest extends PasswordResetConfi
         assertTrue(ticketState(ready).isEmpty());
         if(phase.equals("committed")) {
             assertTrue(hasher.matches("new-password",(String)row(user).get("password_token"))); assertEquals(1L,((Number)row(user).get("token_version")).longValue());
+            var login=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/auth/login")
+                    .contentType("application/json").content(json.writeValueAsString(Map.of("loginType","USERNAME_PASSWORD","account",user.getUsername(),"password","new-password")))).andReturn();
+            assertEquals(200,login.getResponse().getStatus(),login.getResponse().getContentAsString());
         } else assertEquals(before,row(user));
         verify(updater,times(1)).update(any(),anyString());
         verify(tickets,times(1)).consume(any());
@@ -93,4 +102,49 @@ class PasswordResetConfirmationFailureIntegrationTest extends PasswordResetConfi
         assertProblem(confirm(ready,"other-password"),400,"PASSWORD_RESET_VERIFICATION_FAILED");
         assertTrue(hasher.matches("new-password",(String)row(user).get("password_token"))); verify(updater,times(1)).update(any(),anyString());
     }
+    @ParameterizedTest @ValueSource(strings={"begin","query","commit"})
+    void should_preserve_ticket_on_read_transaction_failure(String phase) throws Exception {
+        var user=save("a@example.com",UserRole.USER);
+        var issued=issue(ready(user.getEmail()));
+        var before=row(user);
+        var state=ticketState(issued);
+        long ending=redis.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                "return redis.call('PEXPIRETIME',KEYS[1])",Long.class),
+                List.of(org.example.music.user.repository.PasswordResetTicketStore.PREFIX+"ticket:"+digest(issued.resetTicket())));
+        switch(phase) {
+            case "begin" -> doThrow(new CannotCreateTransactionException("private-password")).when(transactions).getTransaction(any());
+            case "query" -> jdbc.execute("RENAME TABLE users TO password_reset_unavailable_users");
+            case "commit" -> doAnswer(invocation->{invocation.callRealMethod();throw new TransactionSystemException("private-password");})
+                    .when(transactions).commit(any());
+        }
+        org.springframework.test.web.servlet.MvcResult result;
+        try {
+            result=confirm(issued,"new-password");
+        } finally {
+            if(phase.equals("query")) jdbc.execute("RENAME TABLE password_reset_unavailable_users TO users");
+        }
+        assertProblem(result,503,"PASSWORD_RESET_CONFIRMATION_UNAVAILABLE");
+        assertFalse(result.getResponse().getContentAsString().contains("private-password"));
+        doCallRealMethod().when(transactions).getTransaction(any());
+        doCallRealMethod().when(transactions).commit(any());
+        assertEquals(before,row(user));
+        assertEquals(state,ticketState(issued));
+        assertEquals(ending,redis.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                "return redis.call('PEXPIRETIME',KEYS[1])",Long.class),
+                List.of(org.example.music.user.repository.PasswordResetTicketStore.PREFIX+"ticket:"+digest(issued.resetTicket()))));
+        verify(tickets,never()).consume(any());
+        verify(updater,never()).update(any(),anyString());
+    }
+    @Test void should_preserve_ticket_when_current_password_hash_is_damaged() throws Exception {
+        var user=save("a@example.com",UserRole.USER);
+        var issued=issue(ready(user.getEmail()));
+        jdbc.update("update users set password_token='broken' where id=?",user.getId());
+        var state=ticketState(issued);
+        clearInvocations(hasher);
+        assertProblem(confirm(issued,"new-password"),503,"PASSWORD_RESET_CONFIRMATION_UNAVAILABLE");
+        assertEquals(state,ticketState(issued));
+        verifyNoInteractions(hasher,updater);
+        verify(tickets,never()).consume(any());
+    }
+
 }

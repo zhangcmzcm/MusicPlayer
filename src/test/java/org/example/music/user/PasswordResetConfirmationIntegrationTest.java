@@ -46,7 +46,9 @@ class PasswordResetConfirmationIntegrationTest extends PasswordResetConfirmation
     }
     @Test void should_preserve_ticket_on_equivalent_password() throws Exception {
         var user=save("a@example.com",UserRole.USER); var ready=issue(ready(user.getEmail())); var before=ticketState(ready);
+        long ending=tickets.readByDigest(digest(ready.resetTicket())).orElseThrow().period().expiresAt().toEpochMilli();
         assertProblem(confirm(ready,"test-password"),400,"NEW_PASSWORD_SAME_AS_OLD"); assertEquals(before,ticketState(ready));
+        assertEquals(ending,redis.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>("return redis.call('PEXPIRETIME',KEYS[1])",Long.class),List.of(org.example.music.user.repository.PasswordResetTicketStore.PREFIX+"ticket:"+digest(ready.resetTicket()))));
         assertEquals(204,confirm(ready,"new-password").getResponse().getStatus());
     }
     @Test void should_hide_account_limit_across_reissues_like_unknown_ticket() throws Exception {
@@ -154,6 +156,15 @@ class PasswordResetConfirmationIntegrationTest extends PasswordResetConfirmation
         redis.delete(ipKey);for(int i=0;i<10;i++) quota.admitIp(digest("127.0.0.1"));
         assertProblem(confirm(live,"new-password"),429,"PASSWORD_RESET_CONFIRMATION_RATE_LIMITED");verifyNoInteractions(hasher);
         assertFalse(ticketState(live).isEmpty());verify(updater,never()).update(any(),anyString());
+    }
+
+    @Test void should_increment_version_above_double_integer_precision_exactly() throws Exception {
+        var user=save("large@example.com",UserRole.USER);
+        jdbc.update("update users set token_version=? where id=?",9007199254740993L,user.getId());
+        var issued=issue(ready(user.getEmail()));
+        assertEquals("9007199254740993",ticketState(issued).get("tokenVersion"));
+        assertEquals(204,confirm(issued,"new-password").getResponse().getStatus());
+        assertEquals(9007199254740994L,((Number)row(user).get("token_version")).longValue());
     }
 
 }
