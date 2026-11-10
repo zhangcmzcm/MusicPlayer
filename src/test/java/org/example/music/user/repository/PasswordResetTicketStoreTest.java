@@ -50,4 +50,18 @@ class PasswordResetTicketStoreTest {
         verify(redis,times(1)).execute(any(RedisScript.class),anyList(),any(Object[].class));
     }
 
+    @Test void should_require_explicit_consumption_result_without_retry() {
+        var ticket=new PasswordResetTicketSnapshot("A".repeat(43),"A".repeat(43),"alice@example.com",
+                new PasswordResetAccountSnapshot(42,"ALICE@example.com",UserRole.ADMIN,9007199254740993L),
+                new PasswordResetTicketPeriod(java.time.Instant.EPOCH,java.time.Instant.EPOCH.plusSeconds(300)));
+        for (List<?> reply : new List<?>[]{List.of(),List.of(2L),List.of("0"),List.of(0L,"extra")}) {
+            when(redis.execute(any(RedisScript.class),anyList(),any(Object[].class))).thenReturn(reply);
+            assertThrows(PasswordResetVerificationUnavailableException.class, () -> store.consume(ticket));
+        }
+        when(redis.execute(any(RedisScript.class),anyList(),any(Object[].class))).thenReturn(List.of(1L));
+        assertFalse(store.consume(ticket));
+        when(redis.execute(any(RedisScript.class),anyList(),any(Object[].class))).thenReturn(List.of(0L));
+        assertTrue(store.consume(ticket));
+    }
+
 }

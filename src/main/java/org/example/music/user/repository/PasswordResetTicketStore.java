@@ -20,6 +20,7 @@ public class PasswordResetTicketStore {
     public static final String PREFIX = "music:auth:password-reset-ticket:";
     private static final RedisScript<List> READ = script("read-current");
     private static final RedisScript<List> LOOKUP = script("read-by-digest");
+    private static final RedisScript<List> CONSUME = script("consume");
     private static final RedisScript<List> EXCHANGE = script("exchange");
     private final StringRedisTemplate redis;
     private final PasswordResetTicketRules rules;
@@ -107,6 +108,19 @@ public class PasswordResetTicketStore {
             throw unavailable();
         } catch (PasswordResetVerificationUnavailableException known) { throw known; }
         catch (RuntimeException failure) { throw new PasswordResetVerificationUnavailableException(failure); }
+    }
+    public boolean consume(PasswordResetTicketSnapshot expected) {
+        rules.validate(expected);
+        var account = expected.account();
+        var reply = execute(CONSUME, List.of(PREFIX + "ticket:" + expected.digest(), PREFIX + "active:" + account.userId()),
+                "1", expected.digest(), account.userId().toString(), expected.email(), expected.emailDigest(), account.email(),
+                account.userRole().name(), Long.toString(account.tokenVersion()),
+                Long.toString(expected.period().issuedAt().toEpochMilli()), Long.toString(expected.period().expiresAt().toEpochMilli()));
+        if (reply != null && reply.size() == 1) {
+            if (Long.valueOf(0).equals(reply.getFirst())) return true;
+            if (Long.valueOf(1).equals(reply.getFirst())) return false;
+        }
+        throw unavailable();
     }
     private static long number(String value) {
         if (!value.matches("0|[1-9][0-9]*")) throw unavailable();
