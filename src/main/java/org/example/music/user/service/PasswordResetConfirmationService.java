@@ -37,7 +37,10 @@ public class PasswordResetConfirmationService {
             var expected = reader.prepareTicket(ticket).orElseThrow(PasswordResetVerificationFailedException::new);
             String newHash;
             try {
-                if (hasher.matches(request.newPassword(), expected.passwordHash())) throw new NewPasswordSameAsOldException();
+                if (rules.isSupportedPasswordHash(expected.passwordHash())
+                        && hasher.matches(request.newPassword(), expected.passwordHash())) {
+                    throw new NewPasswordSameAsOldException();
+                }
                 if (expected.tokenVersion() == Long.MAX_VALUE) throw new PasswordResetConfirmationUnavailableException(null);
                 newHash = hasher.hash(request.newPassword());
                 rules.requirePasswordHash(newHash);

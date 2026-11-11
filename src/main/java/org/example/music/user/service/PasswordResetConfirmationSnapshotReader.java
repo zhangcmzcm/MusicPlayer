@@ -32,7 +32,7 @@ public class PasswordResetConfirmationSnapshotReader {
                     throw new PasswordResetConfirmationUnavailableException(null);
                 }
                 if (!ticket.account().equals(actual)) return false;
-                rules.requirePasswordHash(prepared.passwordHash());
+                rules.requireStoredPasswordHash(prepared.passwordHash());
                 return true;
             }));
         } catch (DataAccessException | TransactionException failure) {

@@ -9,6 +9,8 @@ import org.example.music.user.domain.*;
 import org.example.music.user.repository.UserRepository;
 import org.example.music.user.exception.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.*;
 import org.springframework.transaction.*;
 
 class PasswordResetConfirmationSnapshotReaderTest {
@@ -34,8 +36,8 @@ class PasswordResetConfirmationSnapshotReaderTest {
         when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(new PasswordResetPreparedSnapshot(1,"alice@example.com",UserRole.USER,7,hash)));
         assertTrue(reader.prepareTicket(new PasswordResetTicketSnapshot("A".repeat(43),challenge.emailDigest(),challenge.email(),account,new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)))).isEmpty());
     }
-    @Test void should_reject_bad_hash_or_transaction_start_and_end_failure() {
-        when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(new PasswordResetPreparedSnapshot(1,account.email(),UserRole.USER,7,"bad")));
+    @Test void should_reject_blank_hash_or_transaction_start_and_end_failure() {
+        when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(new PasswordResetPreparedSnapshot(1,account.email(),UserRole.USER,7," ")));
         assertThrows(PasswordResetConfirmationUnavailableException.class,()->reader.prepareTicket(new PasswordResetTicketSnapshot("A".repeat(43),challenge.emailDigest(),challenge.email(),account,new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)))));
         doThrow(new CannotCreateTransactionException("secret")).when(manager).getTransaction(any());
         assertThrows(PasswordResetConfirmationUnavailableException.class,()->reader.isCurrent(challenge));
@@ -57,6 +59,25 @@ class PasswordResetConfirmationSnapshotReaderTest {
                 new PasswordResetTicketPeriod(Instant.EPOCH,Instant.EPOCH.plusSeconds(300)));
         when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(new PasswordResetPreparedSnapshot(1,account.email(),UserRole.USER,-1,hash)));
         assertThrows(PasswordResetConfirmationUnavailableException.class,()->reader.prepareTicket(ticket));
+    }
+
+    @ParameterizedTest @ValueSource(strings={"Legacy-V1", " Legacy-V1 ", "0123456789abcdef0123456789abcdef"})
+    void should_preserve_raw_email_and_legacy_hash_without_rebinding(String legacy) {
+        var ticket = new PasswordResetTicketSnapshot("A".repeat(43), challenge.emailDigest(), challenge.email(), account,
+                new PasswordResetTicketPeriod(Instant.EPOCH, Instant.EPOCH.plusSeconds(300)));
+        var expected = new PasswordResetPreparedSnapshot(1, account.email(), UserRole.USER, 7, legacy);
+        when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(Optional.of(expected));
+        assertEquals(expected, reader.prepareTicket(ticket).orElseThrow());
+        assertEquals(legacy, reader.prepareTicket(ticket).orElseThrow().passwordHash());
+    }
+
+    @ParameterizedTest @NullAndEmptySource @ValueSource(strings={" ", "\t\r\n", "\u2003"})
+    void should_reject_null_or_blank_stored_hash_defensively(String value) {
+        var ticket = new PasswordResetTicketSnapshot("A".repeat(43), challenge.emailDigest(), challenge.email(), account,
+                new PasswordResetTicketPeriod(Instant.EPOCH, Instant.EPOCH.plusSeconds(300)));
+        when(users.findPasswordResetPreparedSnapshot(1)).thenReturn(
+                Optional.of(new PasswordResetPreparedSnapshot(1, account.email(), UserRole.USER, 7, value)));
+        assertThrows(PasswordResetConfirmationUnavailableException.class, () -> reader.prepareTicket(ticket));
     }
 
 }

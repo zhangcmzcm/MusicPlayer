@@ -31,6 +31,7 @@ class PasswordResetConfirmationServiceTest {
         when(quota.admitAccount(1)).thenReturn(true);
         when(reader.prepareTicket(ticket)).thenReturn(Optional.of(prepared));
         when(hasher.hash("new-pass")).thenReturn("newHash");
+        when(rules.isSupportedPasswordHash("oldHash")).thenReturn(true);
         when(tickets.consume(ticket)).thenReturn(true);
     }
     void reset() { service.reset(request, "127.0.0.1"); }
@@ -42,6 +43,7 @@ class PasswordResetConfirmationServiceTest {
         order.verify(tickets).readByDigest(ticket.digest());
         order.verify(quota).admitAccount(1);
         order.verify(reader).prepareTicket(ticket);
+        order.verify(rules).isSupportedPasswordHash("oldHash");
         order.verify(hasher).matches("new-pass","oldHash");
         order.verify(hasher).hash("new-pass");
         order.verify(rules).requirePasswordHash("newHash");
@@ -121,4 +123,43 @@ class PasswordResetConfirmationServiceTest {
         assertFalse(failure.getCause().toString().contains("private-password"));
         verify(updater, times(1)).update(any(),anyString());
     }
+    @Test void should_reset_legacy_hash_without_password_comparison_and_keep_original_prepared() {
+        when(rules.isSupportedPasswordHash("oldHash")).thenReturn(false);
+        when(hasher.matches(anyString(), anyString())).thenReturn(true);
+        reset();
+        verify(hasher, never()).matches(anyString(), anyString());
+        var order = inOrder(hasher, rules, tickets, updater);
+        order.verify(rules).isSupportedPasswordHash("oldHash");
+        order.verify(hasher).hash("new-pass");
+        order.verify(rules).requirePasswordHash("newHash");
+        order.verify(tickets).consume(ticket);
+        order.verify(updater).update(prepared, "newHash");
+    }
+
+    @Test void should_preserve_legacy_ticket_when_generated_hash_is_invalid() {
+        when(rules.isSupportedPasswordHash("oldHash")).thenReturn(false);
+        doThrow(new PasswordResetConfirmationUnavailableException(null)).when(rules).requirePasswordHash("newHash");
+        assertThrows(PasswordResetConfirmationUnavailableException.class, this::reset);
+        verify(hasher, never()).matches(anyString(), anyString());
+        verify(tickets, never()).consume(any());
+        verifyNoInteractions(updater);
+    }
+
+    @Test void should_preserve_legacy_ticket_when_encoding_fails() {
+        when(rules.isSupportedPasswordHash("oldHash")).thenReturn(false);
+        when(hasher.hash(anyString())).thenThrow(new IllegalStateException("private-legacy"));
+        assertThrows(PasswordResetConfirmationUnavailableException.class, this::reset);
+        verify(hasher, never()).matches(anyString(), anyString());
+        verify(tickets, never()).consume(any());
+        verifyNoInteractions(updater);
+    }
+
+    @Test void should_preserve_supported_ticket_when_comparison_fails() {
+        when(hasher.matches(anyString(), anyString())).thenThrow(new IllegalArgumentException("private-hash"));
+        assertThrows(PasswordResetConfirmationUnavailableException.class, this::reset);
+        verify(hasher, never()).hash(anyString());
+        verify(tickets, never()).consume(any());
+        verifyNoInteractions(updater);
+    }
+
 }
