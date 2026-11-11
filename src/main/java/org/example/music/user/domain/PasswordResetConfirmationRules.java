@@ -8,10 +8,18 @@ public class PasswordResetConfirmationRules {
     private final PasswordResetEmailRules emails;
     public PasswordResetConfirmationRules(PasswordResetEmailRules emails) { this.emails = emails; }
 
-    public void requirePasswordHash(String hash) {
-        if (hash == null || !hash.matches("\\$2[aby]\\$[0-9]{2}\\$[A-Za-z0-9./]{53}")) throw unavailable();
+    public boolean isSupportedPasswordHash(String hash) {
+        if (hash == null || !hash.matches("\\$2[aby]\\$[0-9]{2}\\$[A-Za-z0-9./]{53}")) return false;
         int cost = Integer.parseInt(hash.substring(4,6));
-        if (cost < 4 || cost > 31) throw unavailable();
+        return cost >= 4 && cost <= 31;
+    }
+
+    public void requireStoredPasswordHash(String hash) {
+        if (hash == null || hash.isBlank()) throw unavailable();
+    }
+
+    public void requirePasswordHash(String hash) {
+        if (!isSupportedPasswordHash(hash)) throw unavailable();
     }
 
     public void validateChallenge(PasswordResetChallengeSnapshot value) {
