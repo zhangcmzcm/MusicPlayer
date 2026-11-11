@@ -108,6 +108,10 @@ class PasswordResetConfirmationIntegrationTest extends PasswordResetConfirmation
         var properties=doc.get("components").get("schemas").get("PasswordResetConfirmationRequest").get("properties");
         assertEquals(2,properties.size()); assertTrue(properties.get("resetTicket").get("writeOnly").asBoolean()); assertTrue(properties.get("newPassword").get("writeOnly").asBoolean());
         assertEquals(72,properties.get("newPassword").get("maxLength").asInt());
+        var operation=doc.get("paths").get(CONFIRM).get("post");
+        assertTrue(operation.get("description").asString().contains("历史密码摘要"));
+        assertTrue(operation.get("description").asString().contains("当前支持的BCrypt"));
+        assertTrue(responses.get("503").get("description").asString().contains("空白旧摘要"));
     }
     @Test void should_reject_expired_revoked_and_invalid_bearer_before_quota() throws Exception {
         var user=save("a@example.com",UserRole.USER); String revoked=token(user);

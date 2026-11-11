@@ -32,11 +32,15 @@
 
 格式通过后，先扣TCP客户端IP固定60秒10次额度，再完整读取票据及当前账户指针，按可信userId扣固定900秒10次额度。第三步使用music:auth:password-reset-completion:前缀，第二步保留music:auth:password-reset-confirmation:，两组窗口独立。前层已准入及后续失败均计数，当前拒绝层不增、不续窗，新票、重发、换设备或登录均保留原窗口。不信任X-Forwarded-For。
 
-仅IP拒绝429及Retry-After，值为Redis原窗口剩余毫秒向上取整秒数且至少1。账户额度拒绝统一400 PASSWORD_RESET_VERIFICATION_FAILED，隐藏等待时间、剩余次数及拒绝层。缺失假票只扣IP，无账户键。有效票据及prepared绑定通过后才比较新旧密码。
+仅IP拒绝429及Retry-After，值为Redis原窗口剩余毫秒向上取整秒数且至少1。账户额度拒绝统一400 PASSWORD_RESET_VERIFICATION_FAILED，隐藏等待时间、剩余次数及拒绝层。缺失假票只扣IP，无账户键。有效票据及prepared绑定通过后，仅对当前支持的BCrypt存量摘要比较新旧密码。
 
 票据沿用第二步schema 1及签发起300秒原期限，当前时刻等于expiresAt已过期。必须同时匹配摘要记录和该账户当前票据指针。每账户最新一张，新票成功签发替换旧票，单纯申请、排队、发送或激活邮箱验证码保留票据原期限。
 
-短只读事务复核票据原始邮箱、角色及版本，读取当前密码摘要。事务外判断新旧密码等价，等价返回NEW_PASSWORD_SAME_AS_OLD，保留票据与原期限，当前额度已扣。新摘要计算异常或版本上限在消费前503。摘要准备完成后，以完整预期快照单Lua原子消费票据及匹配指针，明确成功后执行一次短MySQL条件更新，仅修改密码摘要、认证版本加1及UTC更新时间。
+短只读事务复核票据原始邮箱、角色及版本，读取非空存量密码摘要并保留原文。旧值为当前支持的BCrypt格式时，在事务外判断新旧密码是否相同，相同返回NEW_PASSWORD_SAME_AS_OLD，保留票据与原期限，当前额度已扣。
+
+非空历史密码摘要在票据授权后使用当前PasswordHasher生成新BCrypt摘要，包括当前无法识别的旧格式或格式异常的非空值。同密码判断适用于当前支持的BCrypt值。旧值为空串或全空白时503，票据按原期限保留；新摘要计算/校验异常、支持格式的比较异常或版本上限也在消费前503。
+
+新摘要严格校验通过后，以完整预期快照单Lua原子消费票据及匹配指针，明确成功后执行一次短MySQL条件更新，仅修改密码摘要、认证版本加1及UTC更新时间。历史原值的大小写及首尾字符参与binary条件匹配。成功后使用新密码走正常登录流程。
 
 原始邮箱、角色、旧密码摘要、版本或账户存在性变化导致条件更新失败，统一400。使用原prepared执行一次CAS，条件冲突后结束处理。仅用户名并发变化可成功并保留新用户名。期限内消费成功，后续数据库提交可以跨expiresAt。
 
@@ -57,10 +61,10 @@ Cache-Control: no-store
 | --- | --- | --- |
 | 400 | VALIDATION_FAILED | 字段、JSON、编码或字节预算不符合规则 |
 | 400 | PASSWORD_RESET_VERIFICATION_FAILED | 票据缺失/过期/被替换/已消费、账户额度拒绝、绑定变化或条件更新0行 |
-| 400 | NEW_PASSWORD_SAME_AS_OLD | 有效票据绑定后发现新旧密码等价，未消费 |
+| 400 | NEW_PASSWORD_SAME_AS_OLD | 有效票据绑定后，当前支持的BCrypt摘要与新密码匹配，票据保留原期限 |
 | 415 | UNSUPPORTED_MEDIA_TYPE | 需要UTF-8 application/json |
 | 429 | PASSWORD_RESET_CONFIRMATION_RATE_LIMITED | 仅IP额度拒绝，带Retry-After |
-| 503 | PASSWORD_RESET_CONFIRMATION_UNAVAILABLE | Redis/DB/事务/摘要故障、损坏状态、认证版本上限或结果未知 |
+| 503 | PASSWORD_RESET_CONFIRMATION_UNAVAILABLE | Redis/DB/事务故障、空白旧摘要、新摘要生成/校验或比较故障、损坏状态、认证版本上限或结果未知 |
 | 500 | INTERNAL_ERROR | 未预期异常或不可能的更新行数 |
 | 401 | UNAUTHORIZED / INVALID_TOKEN / TOKEN_REVOKED | 主动附带无效Bearer的原安全链错误；签名错误/过期可仅有WWW-Authenticate及空正文 |
 | 403 | FORBIDDEN | 原安全链拒绝，无新增角色限制 |
