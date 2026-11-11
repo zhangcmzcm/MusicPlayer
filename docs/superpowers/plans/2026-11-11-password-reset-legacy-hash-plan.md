@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿项目协议，由Codex在本会话实现，Claude独立只读审核。执行子技能未列为可用，按本会话原生方式逐任务实施。用户已确认开始，任务1至5实现与自验完成，独立实现审核材料已备齐。
+> 执行方式沿项目协议，由Codex在本会话实现，Claude独立只读审核。执行子技能未列为可用，按本会话原生方式逐任务实施。用户已确认开始，任务1至5实现与自验完成，第1/3轮独立实现审核accepted，零阻断项、无新增非阻断项。
 
 **Goal:** 让持有有效邮箱验证票据的历史账号通过POST /api/v1/users/password-resets将非空旧格式摘要替换为当前BCrypt摘要，随后使用新密码正常登录。
 
@@ -179,3 +179,9 @@ assertEquals(200, access(login(user, user.getEmail(), "EMAIL_PASSWORD", "new-pas
 源码/测试冻结3a4ffdc。Windows PowerShell执行$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain，实际退出0、BUILD SUCCESSFUL，用时16分39秒。新鲜JUnit XML为172类2034通过/0失败/0错误/0跳过，找回密码模块46类435项，MySQL8.4、Redis8.10.2、MinIO均实跑，S3AudioStorageIntegrationTest为5通过/0失败/0错误/0跳过。
 
 源码冻结后仅登记本计划、设计及docs/reviews/2026-11-11-password-reset-legacy-hash-review.md。完整文件15份已纳入材料，包含新增设计/计划/审核文件。设计NOTE-001的null防御与真实空白测试已落实，NOTE-002按已确认顺序处理，待独立实现审核复核。
+
+## 独立实现审核收尾
+
+审核对象47c88b5，源码/测试冻结3a4ffdc，第1/3轮独立实现审核accepted，零阻断项、无新增非阻断项、无争议。独立完整check退出0、BUILD SUCCESSFUL，用时16分16秒，172套件2034通过/0失败/0错误/0跳过，MySQL、Redis、MinIO实跑。NOTE-001已核实闭环，NOTE-002不采纳理由获认可、维持非阻断，完整登记见本轮审核材料。
+
+本轮仅登记审核结果，用户已授权核实后推送，源码/测试相对冻结点零差异。
