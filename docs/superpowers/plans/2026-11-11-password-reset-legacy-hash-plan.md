@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 执行方式沿项目协议，由Codex在本会话实现，Claude独立只读审核。执行子技能未列为可用，按本会话原生方式逐任务实施。用户已确认开始，任务1至3及文档/OpenAPI定向验证完成，当前进入完整check。
+> 执行方式沿项目协议，由Codex在本会话实现，Claude独立只读审核。执行子技能未列为可用，按本会话原生方式逐任务实施。用户已确认开始，任务1至5实现与自验完成，独立实现审核材料已备齐。
 
 **Goal:** 让持有有效邮箱验证票据的历史账号通过POST /api/v1/users/password-resets将非空旧格式摘要替换为当前BCrypt摘要，随后使用新密码正常登录。
 
@@ -137,8 +137,8 @@ assertEquals(200, access(login(user, user.getEmail(), "EMAIL_PASSWORD", "new-pas
 - [x] **4.1 写OpenAPI失败测试。** 在既有/v3/api-docs断言中检查第三步Operation含历史摘要兼容，503说明含空白旧摘要或新摘要生成异常；两个请求字段及响应状态/敏感标记继续校验。运行IntegrationTest对应方法，预期说明断言失败。
 - [x] **4.2 更新文档。** Controller补充兼容语义。API/部署说明列明非空历史值的恢复路径、支持BCrypt时同密码判断、原值CAS及空白503，列出方法/权限/字段/示例/204/错误/安全curl。本设计审核NOTE-001明确null只做单测防御，NOTE-002记录沿已确认分支直接编码的处置。
 - [x] **4.3 定向验证并冻结源码。** 重跑4.1并跑任务1至3涉及用例，git diff --check，核实完整变更文件含untracked。中文提交“docs: 说明找回密码历史摘要兼容行为”，记录源码/测试冻结commit。
-- [ ] **4.4 执行完整验证。** Windows PowerShell设置$env:MINIO_INTEGRATION_TESTS = "true"后运行.\gradlew.bat cleanTest check --console=plain，等待实际完成，记录命令、冻结点、退出码、BUILD状态、耗时及新鲜JUnit XML类数/通过/失败/错误/跳过。必要MySQL/Redis/MinIO均零跳过，任何源码修复后重新冻结并验证。
-- [ ] **4.5 核对严格摘要回归。** 完整结果核对CodeVerifier、Verification、Ticket及旧登录/密码修改相关测试实际执行。新摘要及验证码成本03/32、非法字符、长度差异的拒绝有任务1证据，null未通过修改数据库约束构造。
+- [x] **4.4 执行完整验证。** Windows PowerShell设置$env:MINIO_INTEGRATION_TESTS = "true"后运行.\gradlew.bat cleanTest check --console=plain，等待实际完成，记录命令、冻结点、退出码、BUILD状态、耗时及新鲜JUnit XML类数/通过/失败/错误/跳过。必要MySQL/Redis/MinIO均零跳过，任何源码修复后重新冻结并验证。
+- [x] **4.5 核对严格摘要回归。** 完整结果核对CodeVerifier、Verification、Ticket及旧登录/密码修改相关测试实际执行。新摘要及验证码成本03/32、非法字符、长度差异的拒绝有任务1证据，null未通过修改数据库约束构造。
 
 ## 任务5　实施审核材料与交付
 
@@ -146,10 +146,10 @@ assertEquals(200, access(login(user, user.getEmail(), "EMAIL_PASSWORD", "new-pas
 
 **Interfaces:** AGENTS第14节材料及六列意见复核表。功能基线ff191ac、设计f0f2abe、当前源码冻结点与交审HEAD分别记录。
 
-- [ ] **5.1 编写审核材料。** 唯一Method+Path、权限、声称行为、完整文件含untracked、API/部署/设计/计划路径、数据库迁移情况、实际测试命令与精确数量、安全curl、默认项及未知结果边界齐备。列明broken用例迁移、null单测范围、历史值CAS证据、NOTE-002处置。
-- [ ] **5.2 交付前核对。** git diff --check、git status --short、基线至HEAD及工作树清单，与审核材料逐文件对照；源码/测试相对冻结点零差异，文档状态反映实际测试和独立审核阶段。
-- [ ] **5.3 提交审核材料。** 中文提交“docs: 记录历史密码恢复验证与审核材料”，供用户转Claude独立只读审核，后续反馈按同任务轮次核实处理。
-- [ ] **5.4 汇报实际交付。** 列明实现与自验结果、审核材料、相关取舍及实际提交。用户通过正常三步恢复账号所需的行为以API/部署说明为准。
+- [x] **5.1 编写审核材料。** 唯一Method+Path、权限、声称行为、完整文件含untracked、API/部署/设计/计划路径、数据库迁移情况、实际测试命令与精确数量、安全curl、默认项及未知结果边界齐备。列明broken用例迁移、null单测范围、历史值CAS证据、NOTE-002处置。
+- [x] **5.2 交付前核对。** git diff --check、git status --short、基线至HEAD及工作树清单，与审核材料逐文件对照；源码/测试相对冻结点零差异，文档状态反映实际测试和独立审核阶段。
+- [x] **5.3 提交审核材料。** 中文提交“docs: 记录历史密码恢复验证与审核材料”，供用户转Claude独立只读审核，后续反馈按同任务轮次核实处理。
+- [x] **5.4 汇报实际交付。** 列明实现与自验结果、审核材料、相关取舍及实际提交。用户通过正常三步恢复账号所需的行为以API/部署说明为准。
 
 ## 设计审核反馈复核与处置
 
@@ -173,3 +173,9 @@ assertEquals(200, access(login(user, user.getEmail(), "EMAIL_PASSWORD", "new-pas
 - 5f940a1完成任务3，24类303项真实定向通过/0失败/0错误/0跳过，3分35秒。
 - 任务4先以真实OpenAPI说明断言取得1项失败，再更新注解与文档。最终定向命令为cmd /c gradlew.bat test --tests "org.example.music.user.*PasswordResetConfirmation*Test" --tests "org.example.music.user.*PasswordResetVerification*Test" --tests "org.example.music.user.*PasswordResetTicket*Test" --console=plain，退出0、BUILD SUCCESSFUL，3分27秒，24类303通过/0失败/0错误/0跳过。
 - 本次文档提交冻结源码/测试，后续完整check及审核材料使用该冻结点记录实际结果。
+
+## 最终验证与交审状态
+
+源码/测试冻结3a4ffdc。Windows PowerShell执行$env:MINIO_INTEGRATION_TESTS = "true"; .\gradlew.bat cleanTest check --console=plain，实际退出0、BUILD SUCCESSFUL，用时16分39秒。新鲜JUnit XML为172类2034通过/0失败/0错误/0跳过，找回密码模块46类435项，MySQL8.4、Redis8.10.2、MinIO均实跑，S3AudioStorageIntegrationTest为5通过/0失败/0错误/0跳过。
+
+源码冻结后仅登记本计划、设计及docs/reviews/2026-11-11-password-reset-legacy-hash-review.md。完整文件15份已纳入材料，包含新增设计/计划/审核文件。设计NOTE-001的null防御与真实空白测试已落实，NOTE-002按已确认顺序处理，待独立实现审核复核。
