@@ -135,16 +135,49 @@ class PasswordResetConfirmationFailureIntegrationTest extends PasswordResetConfi
         verify(tickets,never()).consume(any());
         verify(updater,never()).update(any(),anyString());
     }
-    @Test void should_preserve_ticket_when_current_password_hash_is_damaged() throws Exception {
-        var user=save("a@example.com",UserRole.USER);
-        var issued=issue(ready(user.getEmail()));
-        jdbc.update("update users set password_token='broken' where id=?",user.getId());
-        var state=ticketState(issued);
+
+    @ParameterizedTest @ValueSource(strings = {"", " ", "\t\r\n", "\u2003"})
+    void should_preserve_ticket_and_count_admission_when_stored_hash_is_blank(String blank) throws Exception {
+        var user = save("a@example.com", UserRole.USER);
+        jdbc.update("update users set password_token=? where id=?", blank, user.getId());
+        var issued = issue(ready(user.getEmail()));
+        var state = ticketState(issued);
+        String key = org.example.music.user.repository.PasswordResetTicketStore.PREFIX + "ticket:" + digest(issued.resetTicket());
+        var expiryScript = new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                "return redis.call('PEXPIRETIME',KEYS[1])", Long.class);
+        long ending = redis.execute(expiryScript, List.of(key));
         clearInvocations(hasher);
-        assertProblem(confirm(issued,"new-password"),503,"PASSWORD_RESET_CONFIRMATION_UNAVAILABLE");
-        assertEquals(state,ticketState(issued));
-        verifyNoInteractions(hasher,updater);
-        verify(tickets,never()).consume(any());
+        assertProblem(confirm(issued, "new-password"), 503, "PASSWORD_RESET_CONFIRMATION_UNAVAILABLE");
+        assertEquals(state, ticketState(issued));
+        assertEquals(ending, redis.execute(expiryScript, List.of(key)));
+        assertEquals("1", redis.opsForHash().get("music:auth:password-reset-completion:user:" + user.getId(), "count"));
+        assertEquals("1", redis.opsForHash().get("music:auth:password-reset-completion:ip:" + digest("127.0.0.1"), "count"));
+        assertEquals(blank, row(user).get("password_token"));
+        verifyNoInteractions(hasher, updater);
+        verify(tickets, never()).consume(any());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"throw", "invalid"})
+    void should_preserve_legacy_ticket_when_new_hash_generation_fails(String failure) throws Exception {
+        var user = save("a@example.com", UserRole.USER);
+        jdbc.update("update users set password_token=' Legacy-V1 ' where id=?", user.getId());
+        var issued = issue(ready(user.getEmail()));
+        var state = ticketState(issued);
+        var before = row(user);
+        clearInvocations(hasher);
+        if (failure.equals("throw")) {
+            doThrow(new IllegalStateException("private-legacy")).when(hasher).hash("new-password");
+        } else {
+            doReturn("invalid-generated-hash").when(hasher).hash("new-password");
+        }
+        var result = confirm(issued, "new-password");
+        assertProblem(result, 503, "PASSWORD_RESET_CONFIRMATION_UNAVAILABLE");
+        assertFalse(result.getResponse().getContentAsString().contains("private-legacy"));
+        assertEquals(state, ticketState(issued));
+        assertEquals(before, row(user));
+        verify(hasher, never()).matches(anyString(), anyString());
+        verify(tickets, never()).consume(any());
+        verify(updater, never()).update(any(), anyString());
     }
 
 }

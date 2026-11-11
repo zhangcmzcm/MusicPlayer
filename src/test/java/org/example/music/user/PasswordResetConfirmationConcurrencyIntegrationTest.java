@@ -130,4 +130,27 @@ class PasswordResetConfirmationConcurrencyIntegrationTest extends PasswordResetC
         }
         verify(updater,times(1)).update(any(),anyString());
     }
+    @ParameterizedTest @ValueSource(strings = {" Legacy-abc ", "Legacy-AbC"})
+    void should_conflict_when_legacy_hash_changes_after_consumption(String changed) throws Exception {
+        var user = save("a@example.com", UserRole.USER);
+        String original = " Legacy-AbC ";
+        jdbc.update("update users set password_token=? where id=?", original, user.getId());
+        var issued = issue(ready(user.getEmail()));
+        doAnswer(invocation -> {
+            var consumed = invocation.callRealMethod();
+            assertEquals(original, row(user).get("password_token"));
+            jdbc.update("update users set password_token=? where id=?", changed, user.getId());
+            return consumed;
+        }).when(tickets).consume(any());
+        assertProblem(confirm(issued, "new-password"), 400, "PASSWORD_RESET_VERIFICATION_FAILED");
+        assertTrue(ticketState(issued).isEmpty());
+        assertEquals(changed, row(user).get("password_token"));
+        assertEquals(0L, ((Number) row(user).get("token_version")).longValue());
+        var expected = org.mockito.ArgumentCaptor.forClass(PasswordResetPreparedSnapshot.class);
+        verify(updater).update(expected.capture(), anyString());
+        assertEquals(original, expected.getValue().passwordHash());
+        verify(users, times(1)).resetPasswordIfSnapshotMatches(eq(user.getId()), eq(user.getEmail()), eq("USER"),
+                eq(original), eq(0L), anyString());
+    }
+
 }

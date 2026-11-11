@@ -5,6 +5,8 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import java.util.*;
+import java.util.stream.Stream;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.example.music.user.domain.*;
 import org.example.music.user.dto.LoginType;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import org.junit.jupiter.params.provider.*;
 
 @org.testcontainers.junit.jupiter.EnabledIfDockerAvailable
 class PasswordResetConfirmationIntegrationTest extends PasswordResetConfirmationIntegrationSupport {
+    @Autowired PasswordResetConfirmationRules confirmationRules;
     String login(UserEntity user,String account,String type,String password,UserRole role) throws Exception {
         var result=mvc.perform(post("/api/v1/auth/login").contentType("application/json").content(json.writeValueAsString(Map.of("loginType",type,"account",account,"password",password)))).andReturn();
         assertEquals(200,result.getResponse().getStatus(),result.getResponse().getContentAsString());
@@ -165,6 +168,42 @@ class PasswordResetConfirmationIntegrationTest extends PasswordResetConfirmation
         assertEquals("9007199254740993",ticketState(issued).get("tokenVersion"));
         assertEquals(204,confirm(issued,"new-password").getResponse().getStatus());
         assertEquals(9007199254740994L,((Number)row(user).get("token_version")).longValue());
+    }
+
+    static Stream<Arguments> legacyAccounts() {
+        return Stream.of(UserRole.values()).flatMap(role -> Stream.of(
+                "0123456789abcdef0123456789abcdef", "0123456789ABCDEF0123456789ABCDEF",
+                " Legacy-V1 ", "broken", "$2a$03$" + "a".repeat(53),
+                "$2y$32$" + "a".repeat(53), "$2b$10$" + "a".repeat(52), "L".repeat(255))
+                .map(value -> Arguments.of(role, value)));
+    }
+
+    @ParameterizedTest @MethodSource("legacyAccounts")
+    void should_reset_legacy_hash_and_allow_normal_login(UserRole role, String legacy) throws Exception {
+        var user = save("legacy@example.com", role);
+        jdbc.update("update users set password_token=? where id=?", legacy, user.getId());
+        var before = row(user);
+        String oldToken = token(user);
+        var issued = issue(ready(user.getEmail()));
+        clearInvocations(hasher);
+        var result = confirm(issued, "new-password");
+        assertEquals(204, result.getResponse().getStatus(), result.getResponse().getContentAsString());
+        assertEquals("", result.getResponse().getContentAsString());
+        assertEquals("no-store", result.getResponse().getHeader("Cache-Control"));
+        verify(hasher, never()).matches(anyString(), anyString());
+        var after = row(user);
+        String encoded = (String) after.get("password_token");
+        assertTrue(confirmationRules.isSupportedPasswordHash(encoded));
+        assertTrue(hasher.matches("new-password", encoded));
+        assertEquals(1L, ((Number) after.get("token_version")).longValue());
+        for (String field : before.keySet()) {
+            if (!Set.of("password_token", "token_version", "updated_at").contains(field)) {
+                assertEquals(before.get(field), after.get(field), field);
+            }
+        }
+        assertEquals(401, access(oldToken));
+        assertEquals(200, access(login(user, user.getEmail(), "EMAIL_PASSWORD", "new-password", role)));
+        assertProblem(confirm(issued, "another-password"), 400, "PASSWORD_RESET_VERIFICATION_FAILED");
     }
 
 }
