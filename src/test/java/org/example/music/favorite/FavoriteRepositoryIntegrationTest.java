@@ -14,6 +14,44 @@ class FavoriteRepositoryIntegrationTest extends FavoriteIntegrationSupport {
     @Autowired FavoriteRepository favorites;
 
     @Test
+    void should_delete_only_current_users_favorite() {
+        transaction().executeWithoutResult(status -> {
+            favorites.addIfAbsent(userId, publishedId, LocalDateTime.of(2026, 1, 1, 0, 0));
+            favorites.addIfAbsent(adminId, publishedId, LocalDateTime.of(2026, 1, 2, 0, 0));
+            favorites.addIfAbsent(userId, draftId, LocalDateTime.of(2026, 1, 3, 0, 0));
+        });
+        var otherUser = jdbc.queryForMap("select * from user_favorites where user_id=? and track_id=?", adminId, publishedId);
+        var otherTrack = jdbc.queryForMap("select * from user_favorites where user_id=? and track_id=?", userId, draftId);
+        int deleted = transaction().execute(status -> favorites.deleteByUserAndTrack(userId, publishedId));
+        assertEquals(1, deleted);
+        assertEquals(otherUser, jdbc.queryForMap("select * from user_favorites where user_id=? and track_id=?", adminId, publishedId));
+        assertEquals(otherTrack, jdbc.queryForMap("select * from user_favorites where user_id=? and track_id=?", userId, draftId));
+        assertEquals(1, count(publishedId));
+    }
+
+    @Test
+    void should_return_zero_when_favorite_is_missing_or_deleted_again() {
+        transaction().executeWithoutResult(status -> {
+            favorites.addIfAbsent(userId, publishedId, LocalDateTime.of(2026, 1, 1, 0, 0));
+            assertEquals(1, favorites.deleteByUserAndTrack(userId, publishedId));
+            assertEquals(0, favorites.deleteByUserAndTrack(userId, publishedId));
+            assertEquals(0, favorites.deleteByUserAndTrack(userId, Long.MAX_VALUE));
+        });
+    }
+
+    @Test
+    void should_restore_deleted_row_and_audit_fields_on_rollback() {
+        transaction().executeWithoutResult(status -> favorites.addIfAbsent(userId, publishedId,
+                LocalDateTime.of(2026, 1, 1, 0, 0)));
+        var original = jdbc.queryForMap("select * from user_favorites where user_id=?", userId);
+        assertThrows(IllegalStateException.class, () -> transaction().executeWithoutResult(status -> {
+            assertEquals(1, favorites.deleteByUserAndTrack(userId, publishedId));
+            throw new IllegalStateException("force rollback");
+        }));
+        assertEquals(original, jdbc.queryForMap("select * from user_favorites where user_id=?", userId));
+    }
+
+    @Test
     void should_keep_first_audit_fields_when_favorited_again() {
         LocalDateTime first = LocalDateTime.of(2026, 11, 12, 0, 0, 0, 123456000);
         transaction().executeWithoutResult(status -> favorites.addIfAbsent(userId, publishedId, first));

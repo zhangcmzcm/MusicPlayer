@@ -25,6 +25,13 @@ public class FavoriteRepository {
         return statuses.isEmpty() ? Optional.empty() : Optional.of(TrackStatus.valueOf((String) statuses.getFirst()));
     }
 
+    public int deleteByUserAndTrack(Integer userId, Long trackId) {
+        return entityManager.createNativeQuery("delete from user_favorites where user_id=:userId and track_id=:trackId")
+                .setParameter("userId", userId)
+                .setParameter("trackId", trackId)
+                .executeUpdate();
+    }
+
     public void addIfAbsent(Integer userId, Long trackId, LocalDateTime createdAt) {
         entityManager.createNativeQuery("""
                 insert into user_favorites(user_id,track_id,created_at,updated_at,created_by,updated_by)
