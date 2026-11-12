@@ -1,5 +1,6 @@
 package org.example.music.common.exception;
 
+import org.example.music.favorite.exception.FavoriteStoreUnavailableException;
 import org.example.music.user.exception.EmailChangeValidationException;
 import org.example.music.user.exception.EmailChangeUnsupportedMediaTypeException;
 import org.example.music.user.exception.PasswordResetValidationException;
@@ -1046,6 +1047,19 @@ public class GlobalExceptionHandler {
                 "歌曲版本冲突",
                 "歌曲已被其他操作修改，请重新读取后重试"
         ));
+    }
+
+    @ExceptionHandler(FavoriteStoreUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleFavoriteStoreUnavailable(
+            FavoriteStoreUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        LOGGER.warn("Favorite store unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"), exception.getClass().getSimpleName(), exception);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "FAVORITE_STORE_UNAVAILABLE",
+                        "收藏存储不可用", "歌曲收藏暂时无法完成"));
     }
 
     @ExceptionHandler(TrackStoreUnavailableException.class)

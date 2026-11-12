@@ -94,6 +94,9 @@ class TrackDeleteIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
+    private javax.sql.DataSource dataSource;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -180,6 +183,33 @@ class TrackDeleteIntegrationTest {
 
         MediaImportEntity importEntity = mediaImportRepository.findById(fixture.importEntity().getId()).orElseThrow();
         assertNull(importEntity.getTrackId());
+    }
+
+    @Test
+    void should_remove_favorites_when_archived_track_is_deleted() throws Exception {
+        UserEntity admin = saveUser("favorite-delete-admin", UserRole.ADMIN);
+        TrackFixture fixture = saveTrack(admin, TrackStatus.ARCHIVED, true);
+        TrackFixture retained = saveTrack(admin, TrackStatus.PUBLISHED, true);
+        String authorization = "Bearer " + issueToken(admin, UserRole.ADMIN);
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                        "/api/v1/users/me/favorites/" + fixture.track().getId()).header("Authorization", authorization))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                        "/api/v1/users/me/favorites/" + retained.track().getId()).header("Authorization", authorization))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/v1/tracks/" + fixture.track().getId()).header("Authorization", authorization))
+                .andExpect(status().isNoContent());
+
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        assertEquals(0L, jdbc.queryForObject("select count(*) from user_favorites where track_id=?", Long.class, fixture.track().getId()));
+        assertEquals(1L, jdbc.queryForObject("select count(*) from user_favorites where track_id=?", Long.class, retained.track().getId()));
+        assertNull(trackRepository.findById(fixture.track().getId()).orElse(null));
+        assertNull(mediaAssetRepository.findById(fixture.audio().getId()).orElse(null));
+        assertNull(mediaAssetRepository.findById(fixture.cover().getId()).orElse(null));
+        assertThrows(AudioObjectNotFoundException.class, () -> audioStorage.head(AUDIO_BUCKET, fixture.audio().getObjectKey()));
+        assertThrows(AudioObjectNotFoundException.class, () -> audioStorage.head(COVERS_BUCKET, fixture.cover().getObjectKey()));
+        assertNotNull(audioStorage.head(AUDIO_BUCKET, retained.audio().getObjectKey()));
     }
 
     @Test
