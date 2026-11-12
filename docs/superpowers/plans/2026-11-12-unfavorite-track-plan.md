@@ -162,14 +162,14 @@ $env:MINIO_INTEGRATION_TESTS = "true"
 
 - [x] 汇总build/test-results/test/TEST-*.xml中的tests、failures、errors、skipped，通过数为tests减去其余三项。必要容器用例实际运行后记录真实总数，逐项列出任何失败或跳过及原因，修复可恢复故障并重跑必要验证。
 - [x] 准备docs/reviews/2026-11-12-unfavorite-track-review-request.md，含唯一接口、需求权限、声称行为、含untracked的全部文件、API文档、数据库迁移为无、实际命令与数量、Git基线、curl、默认项和风险，首次F02反馈复核为不涉及。
-- [ ] 按本机AGENTS.md第8节第7步自动调用Claude Code CLI，在项目根目录令其先读取本次请求、设计与CLAUDE.md，核对差异，独立复跑带MinIO的完整check，再逐项只读审查。工具集合Read/Glob/Grep/Bash，禁用Write/Edit/NotebookEdit，Bash按只读审查与验证职责使用。
-- [ ] 第1轮输出分别保存至build/reports/unfavorite-review-round1.json和unfavorite-review-round1.stderr.log。使用--output-format json，持续监控到进程退出，核对JSON、is_error、result、permission_denials及必要测试证据，记录实际session_id、modelUsage和轮次。模型沿用本机配置。
-- [ ] 将审核result原文与来源保存到docs/reviews/2026-11-12-unfavorite-track-review.md，Codex复核与原文分别记录。needs_revision逐项核实问题、分级和修改方向，修复确认成立的阻断项或举证请求复核，再执行必要验证并更新材料。
-- [ ] 复审通过--resume接续原session_id，使用各轮独立的JSON与日志文件，保留原问题编号及轮次。同一任务最多3轮，escalated时停止修改并提交人类决策事项。
-- [ ] accepted后记录所有非阻断项的处置，将F02移入任务书完成区，附实际提交、接口、审核和测试证据；更新PROJECT_STATE.md的F02进度并保留F01既有记录。按任务范围提交API文档、审核记录与完成登记，中文说明为 `docs: 登记取消收藏接口验证与独立审核结果`。
+- [x] 按本机AGENTS.md第8节第7步自动调用Claude Code CLI，在项目根目录令其先读取本次请求、设计与CLAUDE.md，核对差异，独立复跑带MinIO的完整check，再逐项只读审查。工具集合Read/Glob/Grep/Bash，禁用Write/Edit/NotebookEdit，Bash按只读审查与验证职责使用。
+- [x] 第1轮输出分别保存至build/reports/unfavorite-review-round1.json和unfavorite-review-round1.stderr.log。使用--output-format json，持续监控到进程退出，核对JSON、is_error、result、permission_denials及必要测试证据，记录实际session_id、modelUsage和轮次。模型沿用本机配置。
+- [x] 将审核result原文与来源保存到docs/reviews/2026-11-12-unfavorite-track-review.md，Codex复核与原文分别记录。needs_revision逐项核实问题、分级和修改方向，修复确认成立的阻断项或举证请求复核，再执行必要验证并更新材料。
+- [x] 复审通过--resume接续原session_id，使用各轮独立的JSON与日志文件，保留原问题编号及轮次。同一任务最多3轮，escalated时停止修改并提交人类决策事项。
+- [x] accepted后记录所有非阻断项的处置，将F02移入任务书完成区，附实际提交、接口、审核和测试证据；更新PROJECT_STATE.md的F02进度并保留F01既有记录。按任务范围提交API文档、审核记录与完成登记，中文说明为 `docs: 登记取消收藏接口验证与独立审核结果`。
 
 ## 计划自检与执行方式
 
 已将设计的HTTP契约、全状态本人取消、0行幂等、事务提交边界、重新收藏时间、并发顺序、真实容器、OpenAPI、中文文档和自动审核映射到四项任务。Repository、Service及Controller的方法名和参数顺序已统一。
 
-执行方式沿用用户确定的Codex唯一实现、Claude Code独立只读审核。用户已审阅计划并授权实现，当前已完成代码、API文档及完整验证，185套件2169通过、0失败、0错误、0跳过，随后自动提交独立实现审核。
+执行方式沿用用户确定的Codex唯一实现、Claude Code独立只读审核。全部任务已完成，自验与独立完整复跑均为185套件2169通过、0失败、0错误、0跳过。自动独立审核第1轮accepted，唯一非阻断意见已逐项复核并记录本轮不采纳理由，详见docs/reviews/2026-11-12-unfavorite-track-review.md。

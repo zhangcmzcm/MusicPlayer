@@ -1,6 +1,6 @@
 # 音乐播放器后端任务书
 
-更新日期为2026-11-12。核对实现基线为main @ 98152c0，最新独立完整验证为179类2097通过、0失败、0错误、0跳过，详见[收藏歌曲实现审核](../reviews/2026-11-12-favorite-track-review.md)。
+更新日期为2026-11-12。核对实现基线为main @ 95893fe，最新独立完整验证为185类2169通过、0失败、0错误、0跳过，详见[取消收藏实现审核](../reviews/2026-11-12-unfavorite-track-review.md)。
 
 本文维护接口需求、工程优化及审核完成记录。未完成区登记下一步候选，完成区集中保存已交付能力和历史验证证据。
 
@@ -40,7 +40,6 @@ T04当前作为独立待设计需求。现有GET /api/v1/tracks已交付分页�
 
 | 编号 | 优先级 | 任务 | 接口规划 | 目标与待确认事项 |
 | --- | --- | --- | --- | --- |
-| F02 | P1 | 取消收藏 | `DELETE /api/v1/users/me/favorites/{trackId}`，待独立审核 | 自验完整185套件2169/0/0/0，MySQL/Redis/MinIO实际运行；本人全状态取消，缺失幂等204。[设计](../superpowers/specs/2026-11-12-unfavorite-track-design.md) / [计划](../superpowers/plans/2026-11-12-unfavorite-track-plan.md) |
 | F03 | P1 | 本人收藏列表 | 待设计，分页读取接口 | 提供“喜欢的音乐”，支持收藏时间排序及分页，确认已归档/已删除歌曲的展示与计数。 |
 | P01 | P2 | 创建私人歌单 | 待设计，独立创建接口 | 用户创建多个歌单，确认名称、描述、封面来源及数量限制。 |
 | P02 | P2 | 本人歌单列表 | 待设计，分页读取接口 | 展示本人歌单、歌曲数及必要封面信息。 |
@@ -114,6 +113,7 @@ O01继续执行认证版本校验，设计缓存时明确撤销生效窗口、�
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
+| F02 取消收藏歌曲 | 已完成 | [设计](../superpowers/specs/2026-11-12-unfavorite-track-design.md) / [计划](../superpowers/plans/2026-11-12-unfavorite-track-plan.md) | [取消收藏API](../api/favorite/unfavorite-track.md) | `DELETE /api/v1/users/me/favorites/{trackId}`。实现cbdeb5c、6a6e036、a6b9a86，送审95893fe。自动独立实现第1轮accepted，185类2169/0/0/0，MySQL/Redis/MinIO实跑。本机Claude Code默认模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-12-unfavorite-track-review.md) |
 | F01 收藏歌曲 | 已完成 | [设计](../superpowers/specs/2026-11-11-favorite-track-design.md) / [计划](../superpowers/plans/2026-11-12-favorite-track-plan.md) | [收藏 API](../api/favorite/favorite-track.md) | `PUT /api/v1/users/me/favorites/{trackId}`。实现cb38211、b90125f、845c5a0，送审98152c0。独立实现第1轮accepted，179类2097/0/0/0，MySQL/Redis/MinIO实跑。审核使用本机Claude Code默认模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-12-favorite-track-review.md) |
 | 认证时间绑定（再次验证/邮箱变更前置） | 已完成 | [设计](../superpowers/specs/2026-11-02-auth-time-binding-design.md) / [计划](../superpowers/plans/2026-11-02-auth-time-binding-plan.md) | [登录 API](../api/auth/login.md) / [时钟与部署条件](../deployment/auth-time-binding.md) | 实现63a9d92、c4c93ef、5c4fe17；材料6708cf0；独立第1轮审核通过，零阻断/非阻断，999/0/0/0（88类、MinIO实跑）；设计NOTE代码侧关闭。交付 JWT auth_time 及登录/角色票原始认证时间继承 |
 | U03 修改本人密码 | 已完成 | [设计](../superpowers/specs/2026-11-01-change-password-design.md) / [计划](../superpowers/plans/2026-11-02-change-password-plan.md) | [改密 API](../api/user/change-password.md) | 实现 e94942d、fbac5a0、af39dc5、c3ad118、eaf2c14；材料 af357c7；第1轮 accepted，零阻断/非阻断；独立 cleanTest check：925/0/0/0（86类，8分17秒）。当前及其他登录旧Token撤销 |
@@ -136,7 +136,7 @@ O01继续执行认证版本校验，设计缓存时明确撤销生效窗口、�
 
 ## 4. 建议推进顺序
 
-1. F01收藏歌曲已交付，音乐功能候选为T04模糊搜索、F02取消收藏及F03收藏列表，再推进P01—P06私人歌单。
+1. F01收藏歌曲和F02取消收藏已交付，音乐功能候选为T04模糊搜索及F03收藏列表，再推进P01—P06私人歌单。
 2. 账户安全候选为U09全部退出，随后按会话需求设计U10当前退出及U11续期。
 3. 浏览器播放接入核验O12，高频访问前推进O09性能基线及O01认证状态优化。
 4. 在收藏与歌单基础上推进H01最近播放、H02进度恢复及L01歌词，再按需要扩展C01歌手/专辑、P07—P08分享及R01推荐。
