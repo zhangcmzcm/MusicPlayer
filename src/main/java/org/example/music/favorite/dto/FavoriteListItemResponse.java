@@ -1,0 +1,18 @@
+package org.example.music.favorite.dto;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.Instant;
+import org.example.music.track.dto.TrackListItemResponse;
+
+@Schema(description = "本人收藏歌曲列表项")
+public record FavoriteListItemResponse(
+        @Schema(description = "歌曲 ID") Long id,
+        @Schema(description = "标题") String title,
+        @Schema(description = "艺术家") String artistName,
+        @Schema(description = "专辑，可空") String albumName,
+        @Schema(description = "毫秒时长，可空") Long durationMs,
+        @Schema(description = "歌曲状态", allowableValues = {"DRAFT", "PUBLISHED", "ARCHIVED"}) String status,
+        @Schema(description = "封面元信息，无封面时为 null") TrackListItemResponse.Cover cover,
+        @Schema(description = "本次收藏关系的首次收藏时间，UTC") Instant favoritedAt
+) {
+}
