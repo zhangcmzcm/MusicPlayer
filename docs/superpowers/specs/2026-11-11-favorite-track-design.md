@@ -2,7 +2,9 @@
 
 日期为2026-11-11，时区为Asia/Shanghai。
 
-状态为分段设计已获用户确认，书面设计待用户审阅。
+状态为用户于2026-11-12确认书面设计并进入writing-plans编写实施计划。
+
+独立设计审核第1/3轮结论为accepted，审核基线为08c78bb，零阻断项。NOTE-001与NOTE-002的复核及处置见[设计审核记录](../../reviews/2026-11-12-favorite-track-design-review.md)。
 
 设计核对基线为 `main @ cb40d20`。工作树已有任务书修改和未跟踪的 `PROJECT_STATE.md`，恢复来源为交接区 `PH-20261111-favorites-01`。
 
@@ -46,7 +48,7 @@ Service 入口使用 `@PreAuthorize("isAuthenticated()")`。现有 SecurityConfi
 
 路径参数使用 Spring MVC 类型转换及 `@Positive` 等价校验。非整数、零、负数和 Long 溢出返回400 VALIDATION_FAILED。缺少路径段按现有路由行为处理。
 
-本接口无业务查询参数。补充技术默认沿用现有本人资料入口，未知查询参数忽略，用户 ID、角色等查询参数和自定义请求头均不能参与身份判定。Controller 无请求体绑定，附带的请求体不参与业务处理。该默认项需随书面设计一并审阅。
+本接口无业务查询参数。技术默认沿用现有本人资料入口，未知查询参数忽略，用户 ID、角色等查询参数和自定义请求头均不能参与身份判定。Controller 无请求体绑定，附带的请求体不参与业务处理。该默认项已随书面设计获确认。
 
 认证过滤链先执行，已认证请求进入参数校验，参数合法后检查歌曲可见性。成功响应统一携带 `Cache-Control: no-store`，204响应无正文。
 
@@ -80,15 +82,15 @@ JWT 解码失败沿用资源服务器现有401及 WWW-Authenticate行为。日�
 
 联合主键为 `(user_id, track_id)`，同时满足本人定向查找和并发唯一性。为 track_id 建立显式索引，服务歌曲外键与级联清理。
 
-user_id 外键指向 users.id，track_id 外键指向 tracks.id，两者均采用 ON DELETE CASCADE。审计用户值由服务端写入。重复请求保持全部字段原值。
+外键集合固定为两条，user_id指向users.id，track_id指向tracks.id，两者均采用ON DELETE CASCADE。created_by与updated_by使用普通INT审计列，由服务端在首次写入时赋为user_id，并由重复请求保持原值。此策略明确了NOTE-001中的审计列约束边界，用户记录删除由user_id外键完成级联。真实MySQL测试核验外键集合及用户删除结果。
 
-数据库时间采用既有UTC约定，由UTC Clock生成，写入DATETIME(6)前统一到微秒精度。本接口成功响应无时间字段。后续收藏读取接口的时间表示在其设计中使用Instant和ISO-8601。
+数据库时间采用既有UTC约定，由UTC Clock生成，写入DATETIME(6)前统一到微秒精度。实施验证发现Hibernate原生LocalDateTime绑定受JVM默认时区影响，故以固定格式UTC文本参数配合MySQL CAST为DATETIME(6)写入，保留非UTC默认时区回归测试。本接口成功响应无时间字段。后续收藏读取接口的时间表示在其设计中使用Instant和ISO-8601。
 
 ## 5. 事务与并发实现方案
 
-补充技术默认采用歌曲行的排他锁读，即按主键读取当前status并执行 `SELECT ... FOR UPDATE`。该锁使同一歌曲上的收藏写入串行执行，并与既有归档UPDATE、发布UPDATE和歌曲DELETE协调。不同歌曲可并行处理。
+已确认的技术默认采用歌曲行的排他锁读，即按主键读取当前status并执行 `SELECT ... FOR UPDATE`。该锁使同一歌曲上的收藏写入串行执行，并与既有归档UPDATE、发布UPDATE和歌曲DELETE协调。不同歌曲可并行处理。
 
-这一实现的代价是热门歌曲上的不同用户收藏也需要等待同一行锁。锁内仅执行状态权限判断与单条收藏写入，事务保持简短。该方案与已确认业务规则相符，随书面设计一并审阅。
+这一实现的代价是热门歌曲上的不同用户收藏也需要等待同一行锁。锁内仅执行状态权限判断与单条收藏写入，事务保持简短。该方案已随书面设计获确认。
 
 事务步骤如下。
 
@@ -140,6 +142,7 @@ Service与事务Service通过Spring代理分层调用，外层Service统一捕�
 - 无认证、错误或过期JWT、失效版本与角色失效，真实签名JWT经过现有SecurityConfig和认证状态过滤器。
 - 伪造查询用户ID、角色、自定义头或请求体均不能选择他人的收藏身份，断言其他用户收藏不受影响。
 - 400、404、503的ProblemDetail媒体类型、code、type、缓存头及错误详情脱敏。
+- NOTE-002对应真实路由测试，分别请求 `PUT /api/v1/users/me/favorites`、`PUT /api/v1/users/me/favorites/`、`PUT /api/v1/users/me/favorites/42/`，记录已认证与未认证时的实际状态码、响应格式及路由处理器，并断言收藏业务Service未调用。API文档按实测结果说明这些路径行为。
 
 ### 持久化与并发
 
@@ -179,6 +182,6 @@ curl --request PUT 'http://localhost:8080/api/v1/users/me/favorites/123' \
 
 已核对单接口边界、当前登录角色、重复收藏的重新鉴权、首次时间保留、联合主键、数据库级联、锁取得顺序、事务提交故障及真实容器验证范围。
 
-需用户审阅的补充技术默认包括未知查询参数及附带请求体不参与业务、歌曲行排他锁读、原生SQL原子幂等写入和统一no-store响应头。
+已随书面设计确认的技术默认包括未知查询参数及附带请求体不参与业务、歌曲行排他锁读、原生SQL原子幂等写入和统一no-store响应头。
 
-书面设计审阅通过后，使用writing-plans生成中文实施计划，再进入实现、完整验证及Claude独立审核。
+实施计划已由用户确认，当前进入实现与完整验证阶段，后续提交Claude独立实现审核。
