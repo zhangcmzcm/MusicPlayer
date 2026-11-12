@@ -9,12 +9,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Positive;
 import org.example.music.favorite.service.FavoriteTrackService;
+import org.example.music.favorite.service.UnfavoriteTrackService;
 import org.example.music.security.AuthenticatedUserPrincipal;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,9 +26,28 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "歌曲收藏", description = "当前登录用户的歌曲收藏")
 public class FavoriteTrackController {
     private final FavoriteTrackService service;
+    private final UnfavoriteTrackService unfavoriteService;
 
-    public FavoriteTrackController(FavoriteTrackService service) {
+    public FavoriteTrackController(FavoriteTrackService service, UnfavoriteTrackService unfavoriteService) {
         this.service = service;
+        this.unfavoriteService = unfavoriteService;
+    }
+
+    @DeleteMapping("/{trackId}")
+    @Operation(summary = "取消收藏歌曲", description = "仅取消当前用户本人收藏，USER与ADMIN均可取消全部歌曲状态的已有收藏。"
+            + "重复取消、未收藏或歌曲不存在均返回204。无请求体，附带内容和未知查询参数不参与业务。")
+    @ApiResponse(responseCode = "204", description = "本人收藏关系已移除或本就不存在，空响应体", headers = @Header(name = "Cache-Control", description = "no-store"), content = @Content)
+    @ApiResponse(responseCode = "400", description = "VALIDATION_FAILED，歌曲ID非法", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "401", description = "需要有效认证，JWT解码失败沿用资源服务器响应", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "500", description = "INTERNAL_ERROR", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "503", description = "FAVORITE_STORE_UNAVAILABLE或AUTH_STATE_STORE_UNAVAILABLE", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<Void> unfavorite(
+            @Parameter(description = "歌曲正整数ID", schema = @Schema(type = "integer", format = "int64", minimum = "1", maximum = "9223372036854775807"))
+            @PathVariable("trackId") @Positive Long trackId,
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUserPrincipal actor
+    ) {
+        unfavoriteService.unfavorite(trackId, actor);
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
     @PutMapping("/{trackId}")

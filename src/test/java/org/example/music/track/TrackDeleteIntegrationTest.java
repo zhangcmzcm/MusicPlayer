@@ -210,6 +210,10 @@ class TrackDeleteIntegrationTest {
         assertThrows(AudioObjectNotFoundException.class, () -> audioStorage.head(AUDIO_BUCKET, fixture.audio().getObjectKey()));
         assertThrows(AudioObjectNotFoundException.class, () -> audioStorage.head(COVERS_BUCKET, fixture.cover().getObjectKey()));
         assertNotNull(audioStorage.head(AUDIO_BUCKET, retained.audio().getObjectKey()));
+        mockMvc.perform(delete("/api/v1/users/me/favorites/" + fixture.track().getId()).header("Authorization", authorization))
+                .andExpect(status().isNoContent());
+        assertEquals(0L, jdbc.queryForObject("select count(*) from user_favorites where track_id=?", Long.class, fixture.track().getId()));
+        assertEquals(1L, jdbc.queryForObject("select count(*) from user_favorites where track_id=?", Long.class, retained.track().getId()));
     }
 
     @Test

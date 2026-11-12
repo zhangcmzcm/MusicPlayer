@@ -10,6 +10,7 @@ import org.example.music.common.exception.GlobalExceptionHandler;
 import org.example.music.config.SecurityConfig;
 import org.example.music.favorite.exception.FavoriteStoreUnavailableException;
 import org.example.music.favorite.service.FavoriteTrackService;
+import org.example.music.favorite.service.UnfavoriteTrackService;
 import org.example.music.security.AuthenticatedUserPrincipal;
 import org.example.music.track.exception.TrackNotFoundException;
 import org.example.music.user.domain.UserRole;
@@ -32,6 +33,7 @@ class FavoriteTrackControllerTest {
     private static final String PATH = "/api/v1/users/me/favorites/";
     @Autowired MockMvc mvc;
     @MockitoBean FavoriteTrackService service;
+    @MockitoBean UnfavoriteTrackService unfavoriteService;
     @MockitoBean UserAuthorizationStateService authorizationState;
     private final AuthenticatedUserPrincipal actor = new AuthenticatedUserPrincipal(7, UserRole.USER);
 
