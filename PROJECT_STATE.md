@@ -1,5 +1,15 @@
 # 音乐播放器后端交接记录
 
+## F02 当前进度，2026-11-12
+
+用户已确认取消收藏的书面设计、实施计划并授权开始实施。当前接口为 `DELETE /api/v1/users/me/favorites/{trackId}`，本人可取消所有状态歌曲的收藏，未收藏、重复取消和歌曲缺失均为204。沿用歌曲行锁与F01协调并发。
+
+工作目录为 `D:\code\Java-code\projects\music`，设计基线825f04e，本地实现提交cbdeb5c、6a6e036、a6b9a86分别对应条件删除、事务与HTTP及并发。代码、API文档和专项测试已完成，专项14套件144通过、0失败、0错误、0跳过，真实MySQL/Redis/MinIO运行。
+
+完整验证已结束，退出码0，185套件2169通过、0失败、0错误、0跳过，耗时18分49秒。命令为设置MINIO_INTEGRATION_TESTS=true后的 `.\gradlew.bat cleanTest check --console=plain`，输出位于 `build/unfavorite-full-check.log`。当前准备按本机AGENTS.md第8节第7步自动调用Claude Code独立只读审核，审核请求为 `docs/reviews/2026-11-12-unfavorite-track-review-request.md`，由本会话持续跟进结论及反馈。
+
+设计与计划分别位于 `docs/superpowers/specs/2026-11-12-unfavorite-track-design.md` 和 `docs/superpowers/plans/2026-11-12-unfavorite-track-plan.md`。设计确认状态、任务书和本记录的进度更新及新API文档、计划当前尚待提交。F02当前仍在实现验证阶段，后续F01交接区作为已完成任务的历史记录保留。
+
 <!-- FAVORITES-HANDOFF-BEGIN PH-20261111-favorites-01 -->
 ## 收藏歌曲接续材料
 
