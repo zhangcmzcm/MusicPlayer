@@ -185,8 +185,8 @@ $searchCheckExitCode = $LASTEXITCODE
 
   结果须为 BUILD SUCCESSFUL。读取 build/test-results/test/TEST-*.xml，汇总 tests、failures、errors、skipped，通过数为 tests 减去其余三项。逐项列出跳过类/方法及原因，核实 MySQL、Redis、MinIO 实跑。完整 check 的进程持续监控至退出，运行故障在授权范围内诊断恢复。
 
-- [ ] **步骤 4** 将本次 XML 复制至 `build/reports/track-search-self-check-xml` 保留自验证据，按 AGENTS.md 第 14 节填写 review-request，写明唯一接口、需求权限、声称行为、全量文件、基线、API、现有结构、真实数量、curl、扫描取舍和首次反馈“不涉及”。对实施及送审材料作范围明确的中文提交，取得实际送审 commit。
-- [ ] **步骤 5** 从项目根目录调用本机 Claude Code CLI。每轮输出独立的 JSON 和 stderr，提示先读 AGENTS.md、CLAUDE.md、审核请求及历史材料，先范围检查，再带 MINIO_INTEGRATION_TESTS=true 独立完整 cleanTest check 和逐项审查。命令形态如下，变量分别设为当前轮次路径和完整中文审核提示。
+- [x] **步骤 4** 将本次 XML 复制至 `build/reports/track-search-self-check-xml` 保留自验证据，按 AGENTS.md 第 14 节填写 review-request，写明唯一接口、需求权限、声称行为、全量文件、基线、API、现有结构、真实数量、curl、扫描取舍和首次反馈“不涉及”。对实施及送审材料作范围明确的中文提交，取得实际送审 commit。
+- [x] **步骤 5** 从项目根目录调用本机 Claude Code CLI。每轮输出独立的 JSON 和 stderr，提示先读 AGENTS.md、CLAUDE.md、审核请求及历史材料，先范围检查，再带 MINIO_INTEGRATION_TESTS=true 独立完整 cleanTest check 和逐项审查。命令形态如下，变量分别设为当前轮次路径和完整中文审核提示。
 
 ```powershell
 $searchReviewResultPath = 'build/reports/track-search-review-round1.json'
@@ -204,8 +204,8 @@ $searchReviewExitCode = $LASTEXITCODE
 
   首轮路径为 `build/reports/track-search-review-round1.json` 与 `build/reports/track-search-review-round1.stderr.log`。Bash 范围限定读取、Git 只读及 Gradle/Docker 验证。CLI 使用本机默认模型配置，持续监控至进程退出，核对退出码、JSON、is_error、result、permission_denials 和真实验证证据。运行故障先恢复，宿主授权按工具流程处理。
 
-- [ ] **步骤 6** 将 result 原文保存到 review.md，登记 session_id、实际 modelUsage、轮次、基线和验证结果。needs_revision 按原编号核实问题、分级、方向和证据，记录处置并完成确认修复的验证，再以 `--resume <session_id>` 接续原会话。每轮独立留存 JSON、stderr 和原文，最多 3 轮，第三轮核对既有阻断项。escalated 时提交双方依据与人类待决事项。
-- [ ] **步骤 7** 有效 accepted 后登记所有非阻断项处置，核对代码与送审范围，将 T04 移入任务书完成区，更新 PROJECT_STATE.md、设计和计划，执行文档差异及链接检查并作中文收尾提交。最终汇报实际提交、API、测试通过/失败/错误/跳过数量、审核来源及剩余环境事项。
+- [x] **步骤 6** 将 result 原文保存到 review.md，登记 session_id、实际 modelUsage、轮次、基线和验证结果。needs_revision 按原编号核实问题、分级、方向和证据，记录处置并完成确认修复的验证，再以 `--resume <session_id>` 接续原会话。每轮独立留存 JSON、stderr 和原文，最多 3 轮，第三轮核对既有阻断项。escalated 时提交双方依据与人类待决事项。
+- [x] **步骤 7** 有效 accepted 后登记所有非阻断项处置，核对代码与送审范围，将 T04 移入任务书完成区，更新 PROJECT_STATE.md、设计和计划，执行文档差异及链接检查并作中文收尾提交。最终汇报实际提交、API、测试通过/失败/错误/跳过数量、审核来源及剩余环境事项。
 
 ## 计划自查与执行交接
 
@@ -213,7 +213,7 @@ $searchReviewExitCode = $LASTEXITCODE
 
 本计划的阶段验收命令服务于各任务定位，接口完成依据为任务 4 的完整 check 和有效独立审核结论。
 
-建议在当前会话逐任务实施，三个实现任务共享参数和仓储调用接口，便于连续核对普通列表回归与真实依赖行为。计划由用户审阅后确认执行方式，再按复选框推进。
+用户已确认本会话逐任务实施，三个实现任务与完整验证均已完成，逐项结果记录如下。
 
 任务 1 实际验证为 BUILD SUCCESSFUL，2 个套件、63 通过、0 失败、0 错误、0 跳过。先执行测试记录了新增接口缺失的 7 个编译错误，再完成实现和 HTTP 契约验证。
 
@@ -221,4 +221,6 @@ $searchReviewExitCode = $LASTEXITCODE
 
 任务 3 联合验证 BUILD SUCCESSFUL，6 套件、114 通过、0 失败、0 错误、0 跳过，1分24秒。实现前记录7个类型缺失编译错误。真实Redis验证80并发60放行，真实MySQL两种3024超时均保留已消耗额度。
 
-任务 4 完整自验退出码0，199套件2376通过、0失败、0错误、0跳过，21分42秒，MINIO_INTEGRATION_TESTS=true，日志build/track-search-full-check.log。当前准备第1轮独立审核，完成状态以有效accepted为准。
+任务 4 完整自验退出码0，199套件2376通过、0失败、0错误、0跳过，21分42秒，MINIO_INTEGRATION_TESTS=true，日志build/track-search-full-check.log。随后完成第1轮独立审核accepted及第2轮非阻断意见证据复核。
+
+2026-11-14任务4闭环。送审7a58bae，独立199套件2376/0/0/0、20分59秒，MySQL/Redis/MinIO实跑。会话928af25d-9e96-4e4a-96e0-17a9216ed28c，实际模型mimo-v2.6-pro，两轮CLI均退出0、is_error=false、permission_denials为空。第1轮accepted，第2轮以官方资料和真实Redis7.4.11证据撤销NOTE-001，零未决项。审核原文及处置见docs/reviews/2026-11-13-track-search-review.md。T04已登记任务书完成区，PROJECT_STATE已同步。

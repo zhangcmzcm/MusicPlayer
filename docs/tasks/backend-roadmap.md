@@ -1,6 +1,6 @@
 # 音乐播放器后端任务书
 
-更新日期为2026-11-13。核对实现基线main @ 68af0a4，最新独立完整验证194套件2293通过、0失败、0错误、0跳过，详见[收藏列表审核](../reviews/2026-11-13-favorite-list-review.md)。
+更新日期为2026-11-14。核对实现基线main @ 7a58bae，最新独立完整验证199套件2376通过、0失败、0错误、0跳过，详见[歌曲搜索审核](../reviews/2026-11-13-track-search-review.md)。
 
 本文维护接口需求、工程优化及审核完成记录。未完成区登记下一步候选，完成区集中保存已交付能力和历史验证证据。
 
@@ -24,17 +24,14 @@
 | U10 | P2 | 退出当前登录 | `POST /api/v1/auth/logout` | 仅撤销当前会话，不影响其他设备；需先设计 jti 或会话标识及有效期内撤销记录，与 U09 区分语义。 |
 | U11 | P3 | Token 续期 | `POST /api/v1/auth/refresh` | 确认长期登录需求，设计刷新凭证轮换、重放检测、撤销与安全存储。刷新继承原 auth_time 和有效认证版本，维护近期验证资格的原始时间。 |
 
-### 2.2 歌曲与模糊搜索
+### 2.2 歌曲管理
 
 | 编号 | 优先级 | 任务 | 建议接口 | 简要说明 |
 | --- | --- | --- | --- | --- |
-| T04 | P1 | 歌曲模糊搜索 | 待设计，可选 `GET /api/v1/tracks/search` 或扩展 `GET /api/v1/tracks?q=...` | 按歌曲名、歌手、专辑进行部分关键词匹配并分页。确认中文匹配、大小写、空白、匹配字段组合、排序与索引策略，限制关键词长度和查询成本，处理 `%`、`_` 等通配字符。搜索结果与统计遵守歌曲可见范围。 |
 | T05 | P2 | 管理员歌曲列表 | `GET /api/v1/admin/tracks` | 围绕额外管理字段或新筛选需求设计，复用已有列表及状态筛选能力；是否需要独立入口在需求确认时决定。 |
 | T06 | P2 | 管理员替换封面 | `PUT /api/v1/tracks/{trackId}/cover` | 确认允许修改的歌曲状态；验证文件大小、MIME、扩展名和魔数，创建新资产并处理旧对象清理、并发和失败补偿。 |
 | T07 | P2 | 编辑已发布歌曲元数据 | `PATCH /api/v1/tracks/{trackId}/metadata` | 如实际需要，单独设计标题、艺术家、专辑等字段的在线修改及版本冲突；不顺手扩大现有草稿编辑接口权限。 |
 | T08 | P3 | 恢复归档歌曲 | `POST /api/v1/tracks/{trackId}/restore` | 仅在确认需要时实施；先决定恢复到 DRAFT 还是 PUBLISHED，并验证媒体资产存在及状态并发，不能默认恢复即公开。 |
-
-T04当前作为独立待设计需求。现有GET /api/v1/tracks已交付分页、排序与状态筛选，当前请求校验拒绝q参数。搜索路径在设计时确认，关键词匹配与结果分页复用现有列表表示及权限规则。拼音、错别字容错、搜索建议或全文检索按后续需求单独评估。
 
 ### 2.3 收藏与歌单
 
@@ -114,6 +111,7 @@ F03审核非阻断后续事项：NOTE-001在查询维护时共享生产与计划
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
+| T04 歌曲模糊搜索 | 已完成 | [设计](../superpowers/specs/2026-11-13-track-search-design.md) / [计划](../superpowers/plans/2026-11-13-track-search-plan.md) | [歌曲列表与搜索API](../api/track/list-tracks.md) | GET /api/v1/tracks扩展q，源码0b0f359、324eedb、07cffad，送审7a58bae。第1轮accepted，第2轮证据复核撤销NOTE-001，零未决项。独立199套件2376/0/0/0，MySQL/Redis/MinIO实跑。本机模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-13-track-search-review.md) |
 | F03 本人收藏列表 | 已完成 | [设计](../superpowers/specs/2026-11-12-favorite-list-design.md) / [计划](../superpowers/plans/2026-11-12-favorite-list-plan.md) | [收藏列表API](../api/favorite/list-favorites.md) | GET /api/v1/users/me/favorites。送审68af0a4，第1轮accepted，独立194套件2293/0/0/0，MySQL/Redis/MinIO实跑。Claude Code实际模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-13-favorite-list-review.md) |
 | F02 取消收藏歌曲 | 已完成 | [设计](../superpowers/specs/2026-11-12-unfavorite-track-design.md) / [计划](../superpowers/plans/2026-11-12-unfavorite-track-plan.md) | [取消收藏API](../api/favorite/unfavorite-track.md) | `DELETE /api/v1/users/me/favorites/{trackId}`。实现cbdeb5c、6a6e036、a6b9a86，送审95893fe。自动独立实现第1轮accepted，185类2169/0/0/0，MySQL/Redis/MinIO实跑。本机Claude Code默认模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-12-unfavorite-track-review.md) |
 | F01 收藏歌曲 | 已完成 | [设计](../superpowers/specs/2026-11-11-favorite-track-design.md) / [计划](../superpowers/plans/2026-11-12-favorite-track-plan.md) | [收藏 API](../api/favorite/favorite-track.md) | `PUT /api/v1/users/me/favorites/{trackId}`。实现cb38211、b90125f、845c5a0，送审98152c0。独立实现第1轮accepted，179类2097/0/0/0，MySQL/Redis/MinIO实跑。审核使用本机Claude Code默认模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-12-favorite-track-review.md) |
@@ -138,7 +136,7 @@ F03审核非阻断后续事项：NOTE-001在查询维护时共享生产与计划
 
 ## 4. 建议推进顺序
 
-1. F01收藏、F02取消收藏、F03收藏列表已交付，后续音乐功能候选为T04模糊搜索及P01—P06私人歌单。
+1. F01收藏、F02取消收藏、F03收藏列表及T04模糊搜索已交付，后续音乐功能候选为P01—P06私人歌单。
 2. 账户安全候选为U09全部退出，随后按会话需求设计U10当前退出及U11续期。
 3. 浏览器播放接入核验O12，高频访问前推进O09性能基线及O01认证状态优化。
 4. 在收藏与歌单基础上推进H01最近播放、H02进度恢复及L01歌词，再按需要扩展C01歌手/专辑、P07—P08分享及R01推荐。

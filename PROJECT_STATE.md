@@ -1,5 +1,21 @@
 # 音乐播放器后端交接记录
 
+<!-- TRACK-SEARCH-HANDOFF-BEGIN PH-20261114-track-search-01 -->
+## T04 当前进度，2026-11-14
+
+GET /api/v1/tracks的可选q扩展已完成实现、中文API、完整验证及独立审核。工作目录为D:\code\Java-code\projects\music，分支main，设计及代码基线8778308，设计确认与计划cd4cb6f，阶段实现0b0f359、324eedb、07cffad，完整送审7a58bae。交接编号PH-20261114-track-search-01，完成材料已核对。
+
+用户已确认Unicode空白分词、全部词跨标题/艺术家/专辑匹配、单字可搜索、现有角色和排序规则。q原始最多100码点、最多5词，Redis默认每账户60秒60次，内容与COUNT默认各2000毫秒。用户已接受首版预计1万首以内的LIKE扫描成本，88组真实查询计划汇总和8组完整实例位于docs/reviews/2026-11-13-track-search-query-plans.md。
+
+自验199套件2376通过、0失败、0错误、0跳过，21分42秒。独立完整复跑同数量，20分59秒，两次均设置MINIO_INTEGRATION_TESTS=true并执行cleanTest check，MySQL、Redis、MinIO实跑。日志分别为build/track-search-full-check.log、build/track-search-independent-check.log，自验与独立XML分别归档build/reports/track-search-self-check-xml和track-search-independent-check-xml。
+
+Claude Code第1轮accepted，NOTE-001经Codex核实官方时间快照语义并请求复核，第2轮由审核方结合真实Redis7.4.11验证撤销，当前零阻断项、零未决建议。两轮沿用session928af25d-9e96-4e4a-96e0-17a9216ed28c，实际modelUsage键为mimo-v2.6-pro，CLI均退出0、is_error=false、permission_denials为空。完整原文、来源、模型用量及逐项处置位于docs/reviews/2026-11-13-track-search-review.md，原始JSON与诊断日志为build/reports/track-search-review-round1和round2对应文件。
+
+权威资料为docs/superpowers/specs/2026-11-13-track-search-design.md、docs/superpowers/plans/2026-11-13-track-search-plan.md、docs/api/track/list-tracks.md及上述审核记录。T04已移入任务书完成区。本会话发起的构建与审核均已结束，收尾内容为审核记录、任务书及状态文档，源代码和API对应已验收7a58bae。收尾提交通过git log核对。
+
+下一接口由用户选定。接续时先只读核对Git状态、T04审核记录和任务书完成区，再确认新的单接口目标与授权范围。
+<!-- TRACK-SEARCH-HANDOFF-END PH-20261114-track-search-01 -->
+
 ## F03 当前进度，2026-11-13
 
 GET /api/v1/users/me/favorites已完成实现、API、V10索引、完整验证及第1轮独立审核accepted。设计和计划为docs/superpowers/specs/2026-11-12-favorite-list-design.md与docs/superpowers/plans/2026-11-12-favorite-list-plan.md。实现基线8d52f35，阶段提交24d37b7、e167d70、e19bd90，完整送审68af0a4。
