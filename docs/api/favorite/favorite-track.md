@@ -91,7 +91,7 @@ JWT签名、过期、issuer或audience解码校验失败沿用资源服务器的
 | /api/v1/users/me/favorites/ | 500 INTERNAL_ERROR，application/problem+json | 401 UNAUTHORIZED |
 | /api/v1/users/me/favorites/123/ | 500 INTERNAL_ERROR，application/problem+json | 401 UNAUTHORIZED |
 
-当前全局兜底将未匹配路径的NoResourceFoundException转换为500。客户端应使用完整的数字ID路径。正常匹配接口后的歌曲不存在或不可见使用404 TRACK_NOT_FOUND。
+F03增加集合GET后，缺少ID的精确集合路径由方法不匹配异常处理；尾斜杠路径仍由静态资源回退处理。当前全局兜底将两类异常均转换为500，对外错误保持不变。客户端应使用完整的数字ID路径。正常匹配接口后的歌曲不存在或不可见使用404 TRACK_NOT_FOUND。
 
 ## curl
 

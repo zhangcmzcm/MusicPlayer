@@ -85,7 +85,7 @@ JWT签名、过期、issuer或audience解码校验失败沿用现有资源服务
 
 ## 缺失路径段与尾斜杠
 
-真实DELETE路由测试记录当前全局行为如下。这些路径均由ResourceHttpRequestHandler处理，取消收藏业务无调用且数据库无修改。
+真实DELETE路由测试记录当前全局行为如下。F03增加集合GET后，缺少ID的精确集合路径由方法不匹配异常处理；尾斜杠路径仍由ResourceHttpRequestHandler处理。取消收藏业务无调用且数据库无修改。
 
 | DELETE请求路径 | 有效认证 | 未认证 |
 | --- | --- | --- |
@@ -93,7 +93,7 @@ JWT签名、过期、issuer或audience解码校验失败沿用现有资源服务
 | /api/v1/users/me/favorites/ | 500 INTERNAL_ERROR，application/problem+json | 401 UNAUTHORIZED |
 | /api/v1/users/me/favorites/123/ | 500 INTERNAL_ERROR，application/problem+json | 401 UNAUTHORIZED |
 
-当前全局兜底会将NoResourceFoundException转为500。正常匹配接口的合法ID，即使对应歌曲或本人收藏缺失，也使用204语义。
+当前全局兜底会将方法不匹配及NoResourceFoundException均转为500，对外错误保持不变。正常匹配接口的合法ID，即使对应歌曲或本人收藏缺失，也使用204语义。
 
 ## curl
 

@@ -1,5 +1,13 @@
 # 音乐播放器后端交接记录
 
+## F03 当前进度，2026-11-13
+
+用户已逐段批准 `GET /api/v1/users/me/favorites` 设计，并审阅设计与实施计划后授权开始。设计为 `docs/superpowers/specs/2026-11-12-favorite-list-design.md`，计划为 `docs/superpowers/plans/2026-11-12-favorite-list-plan.md`。实现基线8d52f35，阶段提交24d37b7、e167d70、e19bd90对应参数响应、存储索引、权限事务。
+
+接口实现、API文档与新增测试已完成，完整自验194套件2293通过、0失败、0错误、0跳过，退出码0，耗时20分16秒。新增真实集成与快照专项31/0/0/0；扩大回归28套件346项中344通过、2项旧路由内部断言失败，修正后F01/F02复跑41/0/0/0。新增集合GET使缺少ID的精确PUT/DELETE路径改为方法不匹配，既有对外500保持不变；已保留并加强错误及无副作用断言，文档同步披露。
+
+V10仅增加本人收藏时间索引，旧迁移不变。真实执行计划位于 `build/reports/favorite-list-query-plans.md`，使用本人收藏驱动关联避免稀疏收藏扫描曲库。完整命令为设置MINIO_INTEGRATION_TESTS=true后的 `.\gradlew.bat cleanTest check --console=plain`，日志 `build/favorite-list-full-check.log`。审核请求为 `docs/reviews/2026-11-13-favorite-list-review-request.md`，独立审核尚未发起，F03尚未标记完成。
+
 ## F02 当前进度，2026-11-12
 
 用户已确认取消收藏的书面设计、实施计划并授权开始实施。当前接口为 `DELETE /api/v1/users/me/favorites/{trackId}`，本人可取消所有状态歌曲的收藏，未收藏、重复取消和歌曲缺失均为204。沿用歌曲行锁与F01协调并发。

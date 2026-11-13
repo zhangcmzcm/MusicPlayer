@@ -1,6 +1,7 @@
 package org.example.music.common.exception;
 
 import org.example.music.favorite.exception.FavoriteStoreUnavailableException;
+import org.example.music.favorite.exception.FavoriteListValidationException;
 import org.example.music.user.exception.EmailChangeValidationException;
 import org.example.music.user.exception.EmailChangeUnsupportedMediaTypeException;
 import org.example.music.user.exception.PasswordResetValidationException;
@@ -872,6 +873,12 @@ public class GlobalExceptionHandler {
                 "Access denied",
                 "You do not have permission to perform this operation"
         ));
+    }
+
+    @ExceptionHandler(FavoriteListValidationException.class)
+    public ResponseEntity<ProblemDetail> handleFavoriteListValidation(FavoriteListValidationException exception, HttpServletRequest request) {
+        return response(problem(request, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED",
+                "请求校验失败", "收藏列表查询参数无效"));
     }
 
     @ExceptionHandler(TrackListValidationException.class)

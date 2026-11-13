@@ -26,7 +26,7 @@ class FavoriteListQueryPlanIntegrationTest {
     void should_upgrade_without_changing_rows_and_record_real_query_plans() throws Exception {
         Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()).target("9").load().migrate();
         var jdbc = new JdbcTemplate(new DriverManagerDataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()));
-        jdbc.update("insert into users(id,username,password_token,user_role) values(1,'plans','test-hash','ADMIN'),(2,'other','test-hash','USER')");
+        jdbc.update("insert into users(id,username,password_token,user_role) values(1,'plans','test-hash','ADMIN'),(2,'other','test-hash','USER'),(3,'sparse','test-hash','USER')");
         jdbc.update("insert into media_assets(id,kind,bucket,object_key,content_type,original_filename,size_bytes,sha256,created_at,created_by) values(1,'AUDIO','test','audio','audio/mpeg','test.mp3',1,?,UTC_TIMESTAMP(6),1)", "a".repeat(64));
         var tracks = new ArrayList<Object[]>();
         var favorites = new ArrayList<Object[]>();
@@ -38,6 +38,7 @@ class FavoriteListQueryPlanIntegrationTest {
         }
         jdbc.batchUpdate("insert into tracks(id,title,artist_name,status,audio_asset_id,created_at,updated_at,created_by,updated_by,version) values(?,?,?,?,1,'2026-01-01','2026-01-01',1,1,0)", tracks);
         jdbc.batchUpdate("insert into user_favorites(user_id,track_id,created_at,updated_at,created_by,updated_by) values(?,?,'2026-11-12 08:30:00.123456','2026-11-12 08:30:00.123456',1,1)", favorites);
+        jdbc.update("insert into user_favorites values(3,1,'2026-01-01','2026-01-01',3,3)");
         var before = jdbc.queryForList("select * from user_favorites order by user_id,track_id");
         Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()).load().migrate();
         assertEquals(before, jdbc.queryForList("select * from user_favorites order by user_id,track_id"));
@@ -62,11 +63,21 @@ class FavoriteListQueryPlanIntegrationTest {
                     }
                 }
             }
-            String countSql = "select count(*) from user_favorites f join tracks t on t.id=f.track_id where f.user_id=1"
+            String countSql = "select count(*) from user_favorites f straight_join tracks t on t.id=f.track_id where f.user_id=1"
                     + (filtered ? " and t.status='PUBLISHED'" : "");
             assertEquals(filtered ? 4000L : 12000L, jdbc.queryForObject(countSql, Long.class));
             report.append("\n## count / ").append(filtered).append("\n\n```text\n")
                     .append(jdbc.queryForObject("EXPLAIN ANALYZE " + countSql, String.class)).append("\n```\n");
+        }
+        for (String field : List.of("id", "title", "artistName", "createdAt", "favoritedAt")) {
+            String sparseSql = FavoriteListRepository.contentSql(new FavoriteListSort(field,false),false)
+                    .replace(":userId","3").replace(":size","20").replace(":offset","0");
+            var plan = jdbc.queryForList("EXPLAIN " + sparseSql);
+            assertEquals("f",plan.getFirst().get("table"));
+            assertNotEquals("ALL",plan.getFirst().get("type"));
+            assertEquals(1,jdbc.queryForList(sparseSql).size());
+            report.append("\n## 稀疏收藏 / ").append(field).append("\n\n```text\n")
+                    .append(jdbc.queryForObject("EXPLAIN ANALYZE " + sparseSql,String.class)).append("\n```\n");
         }
         Path path = Path.of("build/reports/favorite-list-query-plans.md");
         Files.createDirectories(path.getParent());

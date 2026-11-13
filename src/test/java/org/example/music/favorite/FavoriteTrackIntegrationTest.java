@@ -192,12 +192,17 @@ class FavoriteTrackIntegrationTest extends FavoriteIntegrationSupport {
     void should_document_actual_routing_for_missing_id_and_trailing_slash(String suffix) throws Exception {
         String path = "/api/v1/users/me/favorites" + suffix;
         mvc.perform(put(path)).andExpect(status().isUnauthorized());
-        // The existing global catch-all translates unmatched static-resource requests to INTERNAL_ERROR.
+        // The global catch-all retains INTERNAL_ERROR for unsupported methods and unmatched paths.
         var result = mvc.perform(put(path).header("Authorization", bearer(userId, UserRole.USER)))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().contentType("application/problem+json"))
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR")).andReturn();
-        assertInstanceOf(org.springframework.web.servlet.resource.ResourceHttpRequestHandler.class, result.getHandler());
+        if (suffix.isEmpty()) {
+            assertNull(result.getHandler());
+            assertInstanceOf(org.springframework.web.HttpRequestMethodNotSupportedException.class, result.getResolvedException());
+        } else {
+            assertInstanceOf(org.springframework.web.servlet.resource.ResourceHttpRequestHandler.class, result.getHandler());
+        }
         verifyNoInteractions(favorites, service);
         assertEquals(0, jdbc.queryForObject("select count(*) from user_favorites", Long.class));
     }

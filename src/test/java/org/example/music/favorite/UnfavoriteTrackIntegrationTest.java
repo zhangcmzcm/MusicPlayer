@@ -230,7 +230,12 @@ class UnfavoriteTrackIntegrationTest extends FavoriteIntegrationSupport {
         var result = mvc.perform(delete(path).header("Authorization", bearer(userId, UserRole.USER)))
                 .andExpect(status().isInternalServerError()).andExpect(content().contentType("application/problem+json"))
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR")).andReturn();
-        assertInstanceOf(org.springframework.web.servlet.resource.ResourceHttpRequestHandler.class, result.getHandler());
+        if (suffix.isEmpty()) {
+            assertNull(result.getHandler());
+            assertInstanceOf(org.springframework.web.HttpRequestMethodNotSupportedException.class, result.getResolvedException());
+        } else {
+            assertInstanceOf(org.springframework.web.servlet.resource.ResourceHttpRequestHandler.class, result.getHandler());
+        }
         verifyNoInteractions(favorites, service);
         assertEquals(0, jdbc.queryForObject("select count(*) from user_favorites", Integer.class));
     }

@@ -32,7 +32,7 @@ public class FavoriteListRepository {
     }
 
     public long count(Integer userId, TrackStatus status) {
-        var query = entityManager.createNativeQuery("select count(*) from user_favorites f join tracks t on t.id=f.track_id"
+        var query = entityManager.createNativeQuery("select count(*) from user_favorites f straight_join tracks t on t.id=f.track_id"
                 + " where f.user_id=:userId" + (status == null ? "" : " and t.status=:status"))
                 .setParameter("userId", userId);
         if (status != null) {
@@ -43,7 +43,7 @@ public class FavoriteListRepository {
 
     public static String contentSql(FavoriteListSort sort, boolean filtered) {
         String column = switch (sort.property()) {
-            case "id" -> "t.id";
+            case "id" -> "f.track_id";
             case "title" -> "t.title";
             case "artistName" -> "t.artist_name";
             case "createdAt" -> "t.created_at";
@@ -51,12 +51,13 @@ public class FavoriteListRepository {
             default -> throw new IllegalArgumentException("Unsupported favorite sort");
         };
         String direction = sort.ascending() ? " asc" : " desc";
+        // Drive from this owner's favorites, avoiding a catalog scan for sparse collections.
         // Return UTC wall time as text so JDBC/JVM timezone conversion cannot shift DATETIME(6).
         return "select t.id,t.title,t.artist_name,t.album_name,t.duration_ms,t.status,t.cover_asset_id,"
                 + "date_format(f.created_at,'%Y-%m-%dT%H:%i:%s.%f') as favorited_at "
-                + "from user_favorites f join tracks t on t.id=f.track_id where f.user_id=:userId"
+                + "from user_favorites f straight_join tracks t on t.id=f.track_id where f.user_id=:userId"
                 + (filtered ? " and t.status=:status" : "") + " order by " + column + direction
-                + (sort.property().equals("id") ? "" : ",t.id" + direction) + " limit :size offset :offset";
+                + (sort.property().equals("id") ? "" : ",f.track_id" + direction) + " limit :size offset :offset";
     }
 
     private Long number(Object value) {
