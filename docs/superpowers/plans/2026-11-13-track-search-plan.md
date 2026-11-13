@@ -172,9 +172,9 @@ assertEquals(expiryBefore, expiryAfter);
 
 **输出结果** 完整中文 API、实际测试数量、可追溯的查询计划与 CLI 审核证据、有效 accepted 或按协议明确交付的 escalated/真实环境阻塞状态。
 
-- [ ] **步骤 1** 更新 docs/api/track/list-tracks.md，将 q 纳入查询参数集合，写明规范化、特殊符号、AND/OR、状态权限、精确分页、额度、Retry-After、两项配置、查询预算单位和已确认扫描取舍。核对 JSON 与 curl 可执行语法，OpenAPI 描述逐项对应实现。
-- [ ] **步骤 2** 核对任务 2 的实际查询计划产物，将环境、数据分布、SQL、扫描行数和耗时整理到 `docs/reviews/2026-11-13-track-search-query-plans.md`。运行 `git diff --check`，核对已跟踪、未跟踪及本轮已有文档改动的完整范围。
-- [ ] **步骤 3** 执行以下完整验证并保留退出码和完整日志。
+- [x] **步骤 1** 更新 docs/api/track/list-tracks.md，将 q 纳入查询参数集合，写明规范化、特殊符号、AND/OR、状态权限、精确分页、额度、Retry-After、两项配置、查询预算单位和已确认扫描取舍。核对 JSON 与 curl 可执行语法，OpenAPI 描述逐项对应实现。
+- [x] **步骤 2** 核对任务 2 的实际查询计划产物，将环境、数据分布、SQL、扫描行数和耗时整理到 `docs/reviews/2026-11-13-track-search-query-plans.md`。运行 `git diff --check`，核对已跟踪、未跟踪及本轮已有文档改动的完整范围。
+- [x] **步骤 3** 执行以下完整验证并保留退出码和完整日志。
 
 ```powershell
 New-Item -ItemType Directory -Force -Path 'build/reports' | Out-Null
@@ -220,3 +220,5 @@ $searchReviewExitCode = $LASTEXITCODE
 任务 2 实际验证分两组执行。查询及真实超时组 4 套件、64 通过、0 失败、0 错误、0 跳过，1分23秒。原列表及搜索计划组 2 套件、2 通过、0 失败、0 错误、0 跳过，补齐英文正命中与返回100行场景后复跑1分15秒。新增接口先记录11个编译错误。查询计划共88组，完整产物为build/reports/track-search-query-plans.md。
 
 任务 3 联合验证 BUILD SUCCESSFUL，6 套件、114 通过、0 失败、0 错误、0 跳过，1分24秒。实现前记录7个类型缺失编译错误。真实Redis验证80并发60放行，真实MySQL两种3024超时均保留已消耗额度。
+
+任务 4 完整自验退出码0，199套件2376通过、0失败、0错误、0跳过，21分42秒，MINIO_INTEGRATION_TESTS=true，日志build/track-search-full-check.log。当前准备第1轮独立审核，完成状态以有效accepted为准。
