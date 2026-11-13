@@ -164,10 +164,10 @@ assertNull(p.requestedStatus());
 - [x] 执行 `git diff --check`，检查相对基线的完整文件列表（含 untracked）及 V1—V9 未变，检查所有文档相对链接。
 - [x] 设置 `$env:MINIO_INTEGRATION_TESTS = "true"` 后运行 `.\gradlew.bat cleanTest check --console=plain`。保存日志，汇总 build/test-results/test/TEST-*.xml 的套件、通过、失败、错误、跳过数量；失败先修复，必要容器跳过不能送 accepted 审核。
 - [x] 准备中文 review-request，明确唯一 GET、已确认契约、全部文件、无新依赖、V10、API 路径、基线和送审提交、实际命令及数量、执行计划证据与成本、首次反馈“不涉及”。源代码或测试变动后重新执行受影响验证和完整基准。
-- [ ] 提交完整送审材料，核对 Git 范围；按最新 AGENTS.md 8(7) 自动运行本机 `claude --print`，Read/Glob/Grep/Bash 工具，禁用 Write/Edit/NotebookEdit，提示独立只读审核并带 MinIO 重跑 cleanTest check。分别保存 `build/reports/favorite-list-review-round1.json` 和 `.stderr.log`，持续监控到退出。
-- [ ] 检查 exit code、JSON、is_error、permission_denials、result、实际 XML 及完整 check 证据，记录实际 session_id/modelUsage、基线和轮次。按原样保存审核原文，Codex 处置另列，不把 CLI 成功等同于 accepted。
-- [ ] needs_revision 时逐项核实事实、分级和方向，按原编号记录六列处置表，范围内修复并验证，`--resume` 接续同一会话，逐轮保存材料。最多三轮，escalated 停止修改交人类决策。
-- [ ] 有效 accepted 后登记所有非阻断项处置，更新设计和计划真实完成状态，将 F03 移入任务书已完成区，更新 PROJECT_STATE；文档检查通过后提交 `docs: 登记收藏列表审核通过并归入完成区`，汇报验证及遗留项，推送依用户授权执行。
+- [x] 提交完整送审材料，核对 Git 范围；按最新 AGENTS.md 8(7) 自动运行本机 `claude --print`，Read/Glob/Grep/Bash 工具，禁用 Write/Edit/NotebookEdit，提示独立只读审核并带 MinIO 重跑 cleanTest check。分别保存 `build/reports/favorite-list-review-round1.json` 和 `.stderr.log`，持续监控到退出。
+- [x] 检查 exit code、JSON、is_error、permission_denials、result、实际 XML 及完整 check 证据，记录实际 session_id/modelUsage、基线和轮次。按原样保存审核原文，Codex 处置另列，不把 CLI 成功等同于 accepted。
+- [x] needs_revision 时逐项核实事实、分级和方向，按原编号记录六列处置表，范围内修复并验证，`--resume` 接续同一会话，逐轮保存材料。最多三轮，escalated 停止修改交人类决策。
+- [x] 有效 accepted 后登记所有非阻断项处置，更新设计和计划真实完成状态，将 F03 移入任务书已完成区，更新 PROJECT_STATE；文档检查通过后提交 `docs: 登记收藏列表审核通过并归入完成区`，汇报验证及遗留项，推送依用户授权执行。
 
 ## 计划自查与执行交接
 
@@ -177,4 +177,6 @@ assertNull(p.requestedStatus());
 
 设计 1—5 节对应任务 1、4，6—8 节对应任务 2、3、4，9 节对应任务 3、4，10 节对应任务 2—5。已核对类型、签名、状态 null 语义、UTC 转换、五个审查重点归属、真实容器和独立审核路径。
 
-用户已批准计划并授权实施。任务1—3已完成，参数、真实MySQL查询与迁移、Service及实际代理测试通过；任务4完成；扩大回归的两项路由断言已修正，41项F01/F02复跑通过。完整cleanTest check为194套件2293通过、0失败、0错误、0跳过，耗时20分16秒。独立审核待发起。执行方式保持Codex实施、Claude Code只读审核。
+用户已批准计划并授权实施。任务1—3已完成，参数、真实MySQL查询与迁移、Service及实际代理测试通过；任务4完成；扩大回归的两项路由断言已修正，41项F01/F02复跑通过。完整cleanTest check为194套件2293通过、0失败、0错误、0跳过，耗时20分16秒。独立第1轮accepted，194套件2293/0/0/0，19分46秒。执行方式保持Codex实施、Claude Code只读审核。
+
+独立审核第1轮直接accepted，needs_revision/escalated分支不适用；其复选框表示条件流程已核对。两条非阻断意见已逐项复核并排期，完整原文与处置见2026-11-13-favorite-list-review.md。

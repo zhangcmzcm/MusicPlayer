@@ -2,11 +2,11 @@
 
 ## F03 当前进度，2026-11-13
 
-用户已逐段批准 `GET /api/v1/users/me/favorites` 设计，并审阅设计与实施计划后授权开始。设计为 `docs/superpowers/specs/2026-11-12-favorite-list-design.md`，计划为 `docs/superpowers/plans/2026-11-12-favorite-list-plan.md`。实现基线8d52f35，阶段提交24d37b7、e167d70、e19bd90对应参数响应、存储索引、权限事务。
+GET /api/v1/users/me/favorites已完成实现、API、V10索引、完整验证及第1轮独立审核accepted。设计和计划为docs/superpowers/specs/2026-11-12-favorite-list-design.md与docs/superpowers/plans/2026-11-12-favorite-list-plan.md。实现基线8d52f35，阶段提交24d37b7、e167d70、e19bd90，完整送审68af0a4。
 
-接口实现、API文档与新增测试已完成，完整自验194套件2293通过、0失败、0错误、0跳过，退出码0，耗时20分16秒。新增真实集成与快照专项31/0/0/0；扩大回归28套件346项中344通过、2项旧路由内部断言失败，修正后F01/F02复跑41/0/0/0。新增集合GET使缺少ID的精确PUT/DELETE路径改为方法不匹配，既有对外500保持不变；已保留并加强错误及无副作用断言，文档同步披露。
+自验194套件2293/0/0/0、20分16秒；独立复跑同数量、19分46秒，均带MINIO_INTEGRATION_TESTS=true执行cleanTest check。审核会话1cd4c5c7-191e-4638-9ed7-8c904a0c2c46，实际模型mimo-v2.6-pro，CLI退出码0、is_error=false、permission_denials为空。原始JSON位于build/reports/favorite-list-review-round1.json，审核原文与复核在docs/reviews/2026-11-13-favorite-list-review.md。
 
-V10仅增加本人收藏时间索引，旧迁移不变。真实执行计划位于 `build/reports/favorite-list-query-plans.md`，使用本人收藏驱动关联避免稀疏收藏扫描曲库。完整命令为设置MINIO_INTEGRATION_TESTS=true后的 `.\gradlew.bat cleanTest check --console=plain`，日志 `build/favorite-list-full-check.log`。审核请求为 `docs/reviews/2026-11-13-favorite-list-review-request.md`，独立审核尚未发起，F03尚未标记完成。
+F03已移入任务书完成区。NOTE-001共享count SQL排期，NOTE-002缓存头与既有全局路由治理合并，具体事实与待核实部分见处置表。无运行中构建或审核，无阻断项。收尾仅修改文档，代码及测试与送审一致。本轮尚未推送，下一接口由用户选择。
 
 ## F02 当前进度，2026-11-12
 
