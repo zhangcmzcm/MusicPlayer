@@ -76,7 +76,7 @@ class TrackListControllerTest {
     }
 
     @ParameterizedTest
-    @CsvSource(value = {"page|-1", "page|abc", "page|1.5", "page|2147483648", "size|0", "size|101", "size|2147483648", "status|published", "status|ALL", "status|DRAFT,PUBLISHED", "sort|title,ASC", "sort|cover.id,asc", "sort|title", "sort|id,desc,title,asc", "q|song"},delimiter='|')
+    @CsvSource(value = {"page|-1", "page|abc", "page|1.5", "page|2147483648", "size|0", "size|101", "size|2147483648", "status|published", "status|ALL", "status|DRAFT,PUBLISHED", "sort|title,ASC", "sort|cover.id,asc", "sort|title", "sort|id,desc,title,asc", "unknown|song"},delimiter='|')
     void should_reject_invalid_parameters_before_service(String key,String value) throws Exception {
         mvc.perform(get("/api/v1/tracks").with(user()).param(key,value))
                 .andExpect(status().isBadRequest()).andExpect(content().contentType("application/problem+json"))
@@ -85,7 +85,7 @@ class TrackListControllerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings={"page","size","sort","status"})
+    @ValueSource(strings={"page","size","sort","status","q"})
     void should_reject_empty_and_duplicate_parameters(String key) throws Exception {
         mvc.perform(get("/api/v1/tracks").with(user()).param(key,""))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
@@ -127,5 +127,23 @@ class TrackListControllerTest {
         doThrow(new TrackStoreUnavailableException("db",null)).when(service).list(any(),eq(actor));
         mvc.perform(get("/api/v1/tracks").with(user())).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("TRACK_STORE_UNAVAILABLE"));
+    }
+
+    @Test
+    void should_forward_normalized_search_terms() throws Exception {
+        when(service.list(any(), eq(actor))).thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0, false));
+        mvc.perform(get("/api/v1/tracks").with(user()).param("q", "\u00a0周杰伦\u3000晴天 "))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+        var captor = ArgumentCaptor.forClass(org.example.music.track.service.TrackListParameters.class);
+        verify(service).list(captor.capture(), eq(actor));
+        assertEquals(List.of("周杰伦", "晴天"), captor.getValue().searchTerms());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\u00a0", "晴 晴 晴 晴 晴 晴"})
+    void should_reject_invalid_search_before_service(String query) throws Exception {
+        mvc.perform(get("/api/v1/tracks").with(user()).param("q", query))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(service);
     }
 }
