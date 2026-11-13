@@ -15,9 +15,11 @@ import org.springframework.transaction.TransactionException;
 @Service
 public class TrackListService {
     private final TrackListQueryService query;
+    private final TrackSearchRateLimiter searchLimiter;
 
-    public TrackListService(TrackListQueryService query) {
+    public TrackListService(TrackListQueryService query, TrackSearchRateLimiter searchLimiter) {
         this.query = query;
+        this.searchLimiter = searchLimiter;
     }
 
     @PreAuthorize("isAuthenticated()")
@@ -28,6 +30,9 @@ public class TrackListService {
                 throw new AccessDeniedException("Track status filter is forbidden");
             }
             status = TrackStatus.PUBLISHED;
+        }
+        if (parameters.hasSearch()) {
+            searchLimiter.consumeOrThrow(actor.userId());
         }
         try {
             return query.query(parameters, status);

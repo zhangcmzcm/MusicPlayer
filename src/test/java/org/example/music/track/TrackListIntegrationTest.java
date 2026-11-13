@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +46,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -72,6 +74,7 @@ class TrackListIntegrationTest {
     @Autowired JwtTokenService jwtTokenService;
     @Autowired TrackListService service;
     @Autowired JdbcTemplate jdbc;
+    @Autowired StringRedisTemplate redis;
     @MockitoSpyBean TrackListRepository listRepository;
     @MockitoSpyBean AudioStorage storage;
     private UserEntity user;
@@ -108,6 +111,7 @@ class TrackListIntegrationTest {
         tracks.deleteAll(); assets.deleteAll(); userRepository.deleteAll(); seeded.clear();
         user = userRepository.save(new UserEntity("list-owner","list-owner@example.com","test-hash",UserRole.USER));
         admin = userRepository.save(new UserEntity("list-admin","list-admin@example.com","test-hash",UserRole.ADMIN));
+        redis.delete(List.of(searchKey(user), searchKey(admin)));
         LocalDateTime now = LocalDateTime.of(2026,1,1,0,0);
         var audio = assets.save(MediaAssetEntity.create(MediaAssetKind.AUDIO,"private-audio","audio", "audio/mpeg","a.mp3",1L,"a".repeat(64),now,user.getId()));
         var coverRecords = new ArrayList<MediaAssetEntity>();
@@ -385,5 +389,58 @@ class TrackListIntegrationTest {
         jdbc.update("update media_assets set content_type='text/plain' where id=?", seeded.get(118).getCoverAssetId());
         mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "Title"))
                 .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
+    }
+
+    @Test
+    void should_share_account_quota_across_roles_and_limit_before_business_queries() throws Exception {
+        for (UserRole role : UserRole.values()) {
+            mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(admin, role)).param("q", "Title"))
+                    .andExpect(status().isOk());
+        }
+        assertEquals("2", redis.opsForValue().get(searchKey(admin)));
+        redis.opsForValue().set(searchKey(admin), "60", Duration.ofSeconds(60));
+        SqlCapture.clear();
+        var response = mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(admin, UserRole.ADMIN)).param("q", "Title"))
+                .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.code").value("TRACK_SEARCH_RATE_LIMITED"))
+                .andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
+        long seconds = Long.parseLong(response.getHeader("Retry-After"));
+        assertTrue(seconds >= 1 && seconds <= 60);
+        assertEquals(1, SqlCapture.statements().size());
+        assertTrue(SqlCapture.statements().getFirst().contains("users"));
+        assertEquals("60", redis.opsForValue().get(searchKey(admin)));
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(admin, UserRole.ADMIN)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(120));
+    }
+
+    @Test
+    void should_authenticate_validate_and_authorize_before_consuming_search_quota() throws Exception {
+        mvc.perform(get("/api/v1/tracks").param("q", "Title")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER))
+                        .param("q", "a b c d e f").param("status", "DRAFT"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER))
+                        .param("q", "Title").param("status", "DRAFT"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        assertEquals(Boolean.FALSE, redis.hasKey(searchKey(user)));
+        verifyNoInteractions(listRepository);
+    }
+
+    @Test
+    void should_return_safe_503_for_corrupt_search_quota_and_allow_plain_list() throws Exception {
+        redis.opsForValue().set(searchKey(user), "broken", Duration.ofSeconds(60));
+        SqlCapture.clear();
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "Title"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("TRACK_SEARCH_RATE_LIMIT_UNAVAILABLE"))
+                .andExpect(header().string("Cache-Control", "no-store"));
+        assertEquals(1, SqlCapture.statements().size());
+        verifyNoInteractions(listRepository);
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(40));
+        assertEquals("broken", redis.opsForValue().get(searchKey(user)));
+    }
+
+    private String searchKey(UserEntity actor) {
+        return "music:track-search:user:" + actor.getId();
     }
 }

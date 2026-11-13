@@ -147,9 +147,9 @@ assertEquals("HY000", sqlException.getSQLState());
 
 **输出接口** `TrackSearchRateLimiter(StringRedisTemplate redis, TrackSearchProperties properties)`、`void consumeOrThrow(Integer userId)`。异常构造器为 `TrackSearchRateLimitedException(long retryAfterSeconds)`、`TrackSearchRateLimitUnavailableException(Throwable cause)`，前者提供 `long getRetryAfterSeconds()`。列表 Service 构造器增加 TrackSearchRateLimiter 参数。
 
-- [ ] **步骤 1** 编写限流单测，参照 PasswordChangeRateLimiterTest，用脚本结果 `{0,0}` 断言放行、`{1,1}` 断言重试 1 秒、未知状态/null/非法列表断言依赖故障。执行 `.\gradlew.bat test --tests "org.example.music.track.service.TrackSearchRateLimiterTest" --console=plain`，记录类型缺失失败。
-- [ ] **步骤 2** 实现原子 Lua 和 Java 结果校验。组件内使用包级常量 `static final RedisScript<List> CONSUME`，由 consumeOrThrow 执行，供同包集成测试读取同一脚本。key 为 `music:track-search:user:<userId>`，窗口 PX=60000。计数为 1 至 Integer.MAX_VALUE 的规范正整数字符串，PTTL 允许 0 至 60000。缺失或 -2 建新窗，-1/越界 TTL/错误类型或计数返回故障。计数达到或超过当前额度时返回限流并保留计数与到期时间，Retry-After 为 1 至 60 秒。脚本返回 `{0,0}` 表示允许、`{1,seconds}` 表示限流、`{2,0}` 表示依赖状态故障，其他结构或数值统一转换依赖故障。
-- [ ] **步骤 3** 新建真实 Redis 集成测试，参考现有 LettuceConnectionFactory 生命周期，使用独立 Redis 7.4 容器及真实 StringRedisTemplate。`should_admit_exactly_sixty_concurrent_searches` 同时提交 80 次，断言 60 放行、20 限流、最终计数 60。`should_keep_saturated_count_and_window_expiry` 使用 PEXPIRETIME 比较拒绝前后到期时间，删除到期 key 后断言重新计数 1。
+- [x] **步骤 1** 编写限流单测，参照 PasswordChangeRateLimiterTest，用脚本结果 `{0,0}` 断言放行、`{1,1}` 断言重试 1 秒、未知状态/null/非法列表断言依赖故障。执行 `.\gradlew.bat test --tests "org.example.music.track.service.TrackSearchRateLimiterTest" --console=plain`，记录类型缺失失败。
+- [x] **步骤 2** 实现原子 Lua 和 Java 结果校验。组件内使用包级常量 `static final RedisScript<List> CONSUME`，由 consumeOrThrow 执行，供同包集成测试读取同一脚本。key 为 `music:track-search:user:<userId>`，窗口 PX=60000。计数为 1 至 Integer.MAX_VALUE 的规范正整数字符串，PTTL 允许 0 至 60000。缺失或 -2 建新窗，-1/越界 TTL/错误类型或计数返回故障。计数达到或超过当前额度时返回限流并保留计数与到期时间，Retry-After 为 1 至 60 秒。脚本返回 `{0,0}` 表示允许、`{1,seconds}` 表示限流、`{2,0}` 表示依赖状态故障，其他结构或数值统一转换依赖故障。
+- [x] **步骤 3** 新建真实 Redis 集成测试，参考现有 LettuceConnectionFactory 生命周期，使用独立 Redis 7.4 容器及真实 StringRedisTemplate。`should_admit_exactly_sixty_concurrent_searches` 同时提交 80 次，断言 60 放行、20 限流、最终计数 60。`should_keep_saturated_count_and_window_expiry` 使用 PEXPIRETIME 比较拒绝前后到期时间，删除到期 key 后断言重新计数 1。
 
 ```java
 assertEquals(60, admitted);
@@ -158,11 +158,11 @@ assertEquals("60", redis.opsForValue().get(key));
 assertEquals(expiryBefore, expiryAfter);
 ```
 
-- [ ] **步骤 4** 真实 Redis 覆盖非法类型、0/负数/前导零/非数字/超出 int 的计数、永久 key、TTL 大于 60000、不同账户隔离和配置从 60 降至 30 时既存计数 40 返回限流。过长 TTL 设为 120000 毫秒。瞬时边界测试读取 CONSUME 的原脚本，在测试包装脚本内通过局部 redis.call 包装固定 PTTL 为 0 或 -2，其余命令委派真实 Redis。断言 0 时饱和计数保持 60、Retry-After=1，-2 时重新建窗计数为 1。真实 Redis 同时覆盖自然到期与短 TTL 行为。
-- [ ] **步骤 5** TrackListService 在状态权限检查后、数据库 try 边界之前按 hasSearch 调用 consumeOrThrow(actor.userId())。更新单元测试手动构造器，添加 `should_consume_search_quota_before_query` 的 InOrder 断言，普通列表、非法输入和隐藏状态权限失败保持相应的零额度调用断言。数据库失败后的已消耗额度由真实 HTTP 测试固定。
-- [ ] **步骤 6** GlobalExceptionHandler 增加 429 TRACK_SEARCH_RATE_LIMITED 及 Retry-After，503 TRACK_SEARCH_RATE_LIMIT_UNAVAILABLE 和脱敏故障日志。Controller OpenAPI 增加 q 的 100 码点/5 词规范、429、限流 503 和重试响应头。WebMvcTest 对 429、两类 503、no-store、ProblemDetail type/code 作精确断言。
-- [ ] **步骤 7** 在 TrackListIntegrationTest 接入真实 Redis 额度断言，使用同一管理员账户的 USER 和 ADMIN Token 验证共享 key。认证、q 校验、隐藏状态权限失败结束于计数之前，数据库超时或故障后计数增加。饱和请求返回 429 且业务 SQL 计数为 0，普通列表完成现有回归。
-- [ ] **步骤 8** 执行 `.\gradlew.bat test --tests "org.example.music.track.service.TrackSearchRateLimiterTest" --tests "org.example.music.track.service.TrackSearchRateLimiterIntegrationTest" --tests "org.example.music.track.service.TrackListServiceTest" --tests "org.example.music.track.controller.TrackListControllerTest" --tests "org.example.music.track.TrackListIntegrationTest" --tests "org.example.music.track.TrackSearchTimeoutIntegrationTest" --console=plain`。全部通过、必要容器测试 0 跳过后提交任务 3 文件，说明为 `feat: 增加歌曲搜索账户限流与HTTP契约`。
+- [x] **步骤 4** 真实 Redis 覆盖非法类型、0/负数/前导零/非数字/超出 int 的计数、永久 key、TTL 大于 60000、不同账户隔离和配置从 60 降至 30 时既存计数 40 返回限流。过长 TTL 设为 120000 毫秒。瞬时边界测试读取 CONSUME 的原脚本，在测试包装脚本内通过局部 redis.call 包装固定 PTTL 为 0 或 -2，其余命令委派真实 Redis。断言 0 时饱和计数保持 60、Retry-After=1，-2 时重新建窗计数为 1。真实 Redis 同时覆盖自然到期与短 TTL 行为。
+- [x] **步骤 5** TrackListService 在状态权限检查后、数据库 try 边界之前按 hasSearch 调用 consumeOrThrow(actor.userId())。更新单元测试手动构造器，添加 `should_consume_search_quota_before_query` 的 InOrder 断言，普通列表、非法输入和隐藏状态权限失败保持相应的零额度调用断言。数据库失败后的已消耗额度由真实 HTTP 测试固定。
+- [x] **步骤 6** GlobalExceptionHandler 增加 429 TRACK_SEARCH_RATE_LIMITED 及 Retry-After，503 TRACK_SEARCH_RATE_LIMIT_UNAVAILABLE 和脱敏故障日志。Controller OpenAPI 增加 q 的 100 码点/5 词规范、429、限流 503 和重试响应头。WebMvcTest 对 429、两类 503、no-store、ProblemDetail type/code 作精确断言。
+- [x] **步骤 7** 在 TrackListIntegrationTest 接入真实 Redis 额度断言，使用同一管理员账户的 USER 和 ADMIN Token 验证共享 key。认证、q 校验、隐藏状态权限失败结束于计数之前，数据库超时或故障后计数增加。饱和请求返回 429 且业务 SQL 计数为 0，普通列表完成现有回归。
+- [x] **步骤 8** 执行 `.\gradlew.bat test --tests "org.example.music.track.service.TrackSearchRateLimiterTest" --tests "org.example.music.track.service.TrackSearchRateLimiterIntegrationTest" --tests "org.example.music.track.service.TrackListServiceTest" --tests "org.example.music.track.controller.TrackListControllerTest" --tests "org.example.music.track.TrackListIntegrationTest" --tests "org.example.music.track.TrackSearchTimeoutIntegrationTest" --console=plain`。全部通过、必要容器测试 0 跳过后提交任务 3 文件，说明为 `feat: 增加歌曲搜索账户限流与HTTP契约`。
 
 ## 任务 4 API、完整验证与独立审核闭环
 
@@ -218,3 +218,5 @@ $searchReviewExitCode = $LASTEXITCODE
 任务 1 实际验证为 BUILD SUCCESSFUL，2 个套件、63 通过、0 失败、0 错误、0 跳过。先执行测试记录了新增接口缺失的 7 个编译错误，再完成实现和 HTTP 契约验证。
 
 任务 2 实际验证分两组执行。查询及真实超时组 4 套件、64 通过、0 失败、0 错误、0 跳过，1分23秒。原列表及搜索计划组 2 套件、2 通过、0 失败、0 错误、0 跳过，补齐英文正命中与返回100行场景后复跑1分15秒。新增接口先记录11个编译错误。查询计划共88组，完整产物为build/reports/track-search-query-plans.md。
+
+任务 3 联合验证 BUILD SUCCESSFUL，6 套件、114 通过、0 失败、0 错误、0 跳过，1分24秒。实现前记录7个类型缺失编译错误。真实Redis验证80并发60放行，真实MySQL两种3024超时均保留已消耗额度。

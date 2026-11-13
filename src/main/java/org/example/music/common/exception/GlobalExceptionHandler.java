@@ -57,6 +57,8 @@ import org.example.music.track.exception.TrackAudioStorageInconsistentException;
 import org.example.music.track.exception.TrackCoverNotFoundException;
 import org.example.music.track.exception.TrackCoverStorageInconsistentException;
 import org.example.music.track.exception.TrackStoreUnavailableException;
+import org.example.music.track.exception.TrackSearchRateLimitedException;
+import org.example.music.track.exception.TrackSearchRateLimitUnavailableException;
 import org.example.music.track.exception.TrackVersionConflictException;
 import org.example.music.track.exception.UploadTooLargeException;
 import org.example.music.email.exception.SendCodeRateLimitedException;
@@ -1067,6 +1069,25 @@ public class GlobalExceptionHandler {
                 .cacheControl(org.springframework.http.CacheControl.noStore())
                 .body(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "FAVORITE_STORE_UNAVAILABLE",
                         "收藏存储不可用", "歌曲收藏暂时无法完成"));
+    }
+
+    @ExceptionHandler(TrackSearchRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleTrackSearchRateLimited(
+            TrackSearchRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()))
+                .body(problem(request, HttpStatus.TOO_MANY_REQUESTS, "TRACK_SEARCH_RATE_LIMITED",
+                        "歌曲搜索请求过于频繁", exception.getMessage()));
+    }
+
+    @ExceptionHandler(TrackSearchRateLimitUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleTrackSearchRateLimitUnavailable(
+            TrackSearchRateLimitUnavailableException exception, HttpServletRequest request) {
+        Throwable failure = exception.getCause() == null ? exception : exception.getCause();
+        LOGGER.warn("Track search quota unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"), failure.getClass().getSimpleName());
+        return response(problem(request, HttpStatus.SERVICE_UNAVAILABLE, "TRACK_SEARCH_RATE_LIMIT_UNAVAILABLE",
+                "歌曲搜索额度不可用", exception.getMessage()));
     }
 
     @ExceptionHandler(TrackStoreUnavailableException.class)

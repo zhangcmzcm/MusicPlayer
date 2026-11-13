@@ -2,6 +2,7 @@ package org.example.music.track.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -32,7 +33,8 @@ public class TrackListController {
     }
 
     @GetMapping
-    @Operation(summary = "分页歌曲列表", description = "管理员默认全部状态，其他用户含上传者本人仅已发布；单排序及同向 ID 次排序，不访问对象存储。未知、空值或重复参数返回 400。", parameters = {
+    @Operation(summary = "分页查询与搜索歌曲", description = "管理员默认全部状态，其他用户含上传者本人仅已发布。q按Unicode空白拆词，各词须在标题、艺术家、专辑任一字段中命中。搜索使用账户额度和每条内容/统计SQL执行预算。未知、空值或重复参数返回400。", parameters = {
+            @Parameter(name = "q", description = "可选关键词。原始解码值最多100个Unicode码点，拆分后1至5词，支持单字和特殊符号字面搜索", schema = @Schema(type = "string", minLength = 1, maxLength = 100)),
             @Parameter(name = "page", description = "从 0 开始的页码；page×size 不超过 10000", schema = @Schema(type = "integer", minimum = "0", defaultValue = "0")),
             @Parameter(name = "size", description = "页大小", schema = @Schema(type = "integer", minimum = "1", maximum = "100", defaultValue = "20")),
             @Parameter(name = "sort", description = "单一 字段,方向；字段仅 id/title/artistName/createdAt，方向仅 asc/desc", schema = @Schema(type = "string", defaultValue = "id,desc")),
@@ -41,8 +43,11 @@ public class TrackListController {
     @ApiResponse(responseCode = "400", description = "VALIDATION_FAILED", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "401", description = "需要有效登录，沿用现有认证错误", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "403", description = "FORBIDDEN：非管理员请求隐藏状态", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "429", description = "TRACK_SEARCH_RATE_LIMITED，账户搜索额度耗尽",
+            headers = @Header(name = "Retry-After", description = "当前窗口剩余秒数向上取整", schema = @Schema(type = "integer", minimum = "1", maximum = "60")),
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "500", description = "INTERNAL_ERROR：本页封面资产非法", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    @ApiResponse(responseCode = "503", description = "TRACK_STORE_UNAVAILABLE 或 AUTH_STATE_STORE_UNAVAILABLE", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "503", description = "TRACK_STORE_UNAVAILABLE、TRACK_SEARCH_RATE_LIMIT_UNAVAILABLE或AUTH_STATE_STORE_UNAVAILABLE。内容/COUNT SQL超时为TRACK_STORE_UNAVAILABLE", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<PageResponse<TrackListItemResponse>> list(
             @Parameter(hidden = true) @RequestParam MultiValueMap<String, String> raw,
             @AuthenticationPrincipal AuthenticatedUserPrincipal actor

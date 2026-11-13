@@ -21,6 +21,8 @@ import org.example.music.config.SecurityConfig;
 import org.example.music.security.AuthenticatedUserPrincipal;
 import org.example.music.track.dto.TrackListItemResponse;
 import org.example.music.track.exception.TrackStoreUnavailableException;
+import org.example.music.track.exception.TrackSearchRateLimitedException;
+import org.example.music.track.exception.TrackSearchRateLimitUnavailableException;
 import org.example.music.track.service.TrackListService;
 import org.example.music.track.web.TrackListErrorAdvice;
 import org.example.music.user.domain.UserRole;
@@ -145,5 +147,24 @@ class TrackListControllerTest {
         mvc.perform(get("/api/v1/tracks").with(user()).param("q", query))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void should_return_search_rate_limit_and_dependency_problem_details() throws Exception {
+        doThrow(new TrackSearchRateLimitedException(17)).when(service).list(any(), eq(actor));
+        mvc.perform(get("/api/v1/tracks").with(user()).param("q", "晴"))
+                .andExpect(status().isTooManyRequests()).andExpect(header().string("Retry-After", "17"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.type").value("urn:problem:music:track_search_rate_limited"))
+                .andExpect(jsonPath("$.code").value("TRACK_SEARCH_RATE_LIMITED"));
+        doThrow(new TrackSearchRateLimitUnavailableException(new IllegalStateException("private backend")))
+                .when(service).list(any(), eq(actor));
+        mvc.perform(get("/api/v1/tracks").with(user()).param("q", "晴"))
+                .andExpect(status().isServiceUnavailable()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.type").value("urn:problem:music:track_search_rate_limit_unavailable"))
+                .andExpect(jsonPath("$.code").value("TRACK_SEARCH_RATE_LIMIT_UNAVAILABLE"))
+                .andExpect(jsonPath("$.detail").value("歌曲搜索额度暂时无法确认，请稍后重试"));
     }
 }

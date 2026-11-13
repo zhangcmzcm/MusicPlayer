@@ -34,6 +34,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
@@ -56,7 +57,9 @@ class TrackSearchTimeoutIntegrationTest {
     @Autowired TrackRepository tracks;
     @Autowired MediaAssetRepository assets;
     @Autowired JwtTokenService tokens;
+    @Autowired StringRedisTemplate redis;
     private String bearer;
+    private Integer actorId;
 
     public static class SlowSearchInspector implements StatementInspector {
         private static final ThreadLocal<String> TARGET = new ThreadLocal<>();
@@ -103,6 +106,8 @@ class TrackSearchTimeoutIntegrationTest {
         assets.deleteAll();
         users.deleteAll();
         UserEntity actor = users.save(new UserEntity("search-timeout", "search-timeout@example.com", "test-hash", UserRole.USER));
+        actorId = actor.getId();
+        redis.delete("music:track-search:user:" + actorId);
         LocalDateTime now = LocalDateTime.of(2026, 1, 1, 0, 0);
         var audio = assets.save(MediaAssetEntity.create(MediaAssetKind.AUDIO, "test", "audio", "audio/mpeg",
                 "audio.mp3", 1L, "a".repeat(64), now, actor.getId()));
@@ -142,10 +147,12 @@ class TrackSearchTimeoutIntegrationTest {
             assertEquals(3024, sqlException.getErrorCode());
             assertEquals("HY000", sqlException.getSQLState());
             assertTrue(SlowSearchInspector.MODIFIED.get().contains("SLEEP(10)=0"));
+            assertEquals("1", redis.opsForValue().get("music:track-search:user:" + actorId));
         } finally {
             SlowSearchInspector.clear();
         }
         mvc.perform(get("/api/v1/tracks").header("Authorization", bearer).param("q", "晴"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+        assertEquals("2", redis.opsForValue().get("music:track-search:user:" + actorId));
     }
 }
