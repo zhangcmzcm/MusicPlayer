@@ -6,12 +6,14 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.example.music.common.dto.PageResponse;
+import org.example.music.track.config.TrackSearchProperties;
 import org.example.music.track.domain.MediaAssetKind;
 import org.example.music.track.domain.TrackStatus;
 import org.example.music.track.dto.TrackListItemResponse;
 import org.example.music.track.repository.MediaAssetRepository;
 import org.example.music.track.repository.TrackListCoverRow;
 import org.example.music.track.repository.TrackListRepository;
+import org.example.music.track.repository.TrackListRow;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,16 +23,27 @@ public class TrackListQueryService {
     private static final Set<String> TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private final TrackListRepository tracks;
     private final MediaAssetRepository assets;
+    private final TrackSearchProperties searchProperties;
 
-    public TrackListQueryService(TrackListRepository tracks, MediaAssetRepository assets) {
+    public TrackListQueryService(TrackListRepository tracks, MediaAssetRepository assets, TrackSearchProperties searchProperties) {
         this.tracks = tracks;
         this.assets = assets;
+        this.searchProperties = searchProperties;
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PageResponse<TrackListItemResponse> query(TrackListParameters parameters, TrackStatus status) {
-        var rows = tracks.findRows(status, (int) ((long) parameters.page() * parameters.size()), parameters.size(), parameters.sort());
-        long total = tracks.count(status);
+        int offset = (int) ((long) parameters.page() * parameters.size());
+        List<TrackListRow> rows;
+        long total;
+        if (parameters.hasSearch()) {
+            rows = tracks.findRows(status, offset, parameters.size(), parameters.sort(),
+                    parameters.searchTerms(), searchProperties.queryTimeoutMs());
+            total = tracks.count(status, parameters.searchTerms(), searchProperties.queryTimeoutMs());
+        } else {
+            rows = tracks.findRows(status, offset, parameters.size(), parameters.sort());
+            total = tracks.count(status);
+        }
         var ids = rows.stream().map(row -> row.coverAssetId()).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
         Map<Long, TrackListCoverRow> covers = ids.isEmpty() ? Map.of() : assets.findListCovers(ids).stream()
                 .collect(Collectors.toMap(TrackListCoverRow::id, Function.identity()));

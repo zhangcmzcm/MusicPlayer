@@ -283,4 +283,107 @@ class TrackListIntegrationTest {
                 user.getTokenVersion()
         ), loginRole, LoginType.USERNAME_PASSWORD).tokenValue();
     }
+
+    @Test
+    void should_match_every_term_across_fields_and_count_only_visible_tracks() throws Exception {
+        jdbc.update("update tracks set title='其他',artist_name='其他',album_name=null");
+        for (int index : List.of(0, 1, 2)) {
+            jdbc.update("update tracks set title='晴天现场版',artist_name='周杰伦' where id=?", seeded.get(index).getId());
+        }
+        jdbc.update("update tracks set title='周杰伦精选',album_name='晴天' where id=?", seeded.get(4).getId());
+        jdbc.update("update tracks set title='晴天' where id=?", seeded.get(7).getId());
+        for (UserEntity actor : List.of(user, admin)) {
+            mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(actor, UserRole.USER))
+                            .param("q", "周杰伦 晴天"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.items[0].id").value(seeded.get(4).getId()))
+                    .andExpect(jsonPath("$.items[1].id").value(seeded.get(1).getId()));
+        }
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(admin, UserRole.ADMIN))
+                        .param("q", "周杰伦 晴天"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(4));
+        for (String state : List.of("DRAFT", "ARCHIVED")) {
+            mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(admin, UserRole.ADMIN))
+                            .param("q", "周杰伦 晴天").param("status", state))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.items[0].status").value(state));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"%", "_", "\\", "!", "!%_\\", "' OR 1=1 --", "晴"})
+    void should_search_literal_pattern_characters(String query) throws Exception {
+        jdbc.update("update tracks set title='其他',artist_name='其他',album_name=null");
+        jdbc.update("update tracks set title=? where id=?", "前缀" + query + "后缀", seeded.get(1).getId());
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", query))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(seeded.get(1).getId()));
+    }
+
+    @Test
+    void should_match_case_and_accent_using_database_collation() throws Exception {
+        jdbc.update("update tracks set title='其他',artist_name='其他',album_name=null");
+        jdbc.update("update tracks set title='Café' where id=?", seeded.get(1).getId());
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "CAFE"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void should_keep_search_content_and_count_on_one_snapshot() throws Exception {
+        long id = seeded.get(118).getId();
+        var independent = new JdbcTemplate(new DriverManagerDataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()));
+        doAnswer(invocation -> {
+            independent.update("update tracks set status='ARCHIVED' where id=?", id);
+            return invocation.callRealMethod();
+        }).when(listRepository).count(TrackStatus.PUBLISHED, List.of("Title"), 2000);
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "Title"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(40))
+                .andExpect(jsonPath("$.items[0].id").value(id));
+        reset(listRepository);
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "Title"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(39));
+    }
+
+    @Test
+    void should_keep_search_projection_query_count_and_exact_empty_page() throws Exception {
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "Title"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(40));
+        assertEquals(4, SqlCapture.statements().size());
+        assertTrue(SqlCapture.statements().stream().noneMatch(sql -> sql.contains("id3_metadata")));
+        verifyNoInteractions(storage);
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER))
+                        .param("q", "Title").param("page", "10000").param("size", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.totalElements").value(40)).andExpect(jsonPath("$.totalPages").value(40))
+                .andExpect(jsonPath("$.hasNext").value(false));
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "不存在"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.totalPages").value(0)).andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"id,asc", "id,desc", "title,asc", "title,desc", "artistName,asc", "artistName,desc", "createdAt,asc", "createdAt,desc"})
+    void should_apply_requested_sort_before_search_pagination(String property, String direction) throws Exception {
+        String column = Map.of("id", "id", "title", "title", "artistName", "artist_name", "createdAt", "created_at").get(property);
+        String ordering = column + " " + direction + (property.equals("id") ? "" : ",id " + direction);
+        List<Long> expected = jdbc.queryForList("select id from tracks where status='PUBLISHED' order by "
+                + ordering + " limit 3 offset 3", Long.class);
+        var response = mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER))
+                        .param("q", "Title").param("sort", property + "," + direction).param("page", "1").param("size", "3"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(40)).andReturn().getResponse();
+        var json = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response.getContentAsString());
+        for (int index = 0; index < expected.size(); index++) {
+            assertEquals(expected.get(index).longValue(), json.path("items").get(index).path("id").asLong());
+        }
+    }
+
+    @Test
+    void should_validate_only_current_visible_search_cover_assets() throws Exception {
+        jdbc.update("update media_assets set content_type='text/plain' where id=?", seeded.get(0).getCoverAssetId());
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "Title"))
+                .andExpect(status().isOk());
+        jdbc.update("update media_assets set content_type='text/plain' where id=?", seeded.get(118).getCoverAssetId());
+        mvc.perform(get("/api/v1/tracks").header("Authorization", bearer(user, UserRole.USER)).param("q", "Title"))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
+    }
 }

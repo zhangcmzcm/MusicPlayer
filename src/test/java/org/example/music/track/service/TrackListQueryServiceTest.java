@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import java.util.List;
 import java.util.Set;
 import org.example.music.track.domain.MediaAssetKind;
+import org.example.music.track.config.TrackSearchProperties;
 import org.example.music.track.domain.TrackStatus;
 import org.example.music.track.repository.MediaAssetRepository;
 import org.example.music.track.repository.TrackListCoverRow;
@@ -26,7 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class TrackListQueryServiceTest {
     private final TrackListRepository tracks = mock(TrackListRepository.class);
     private final MediaAssetRepository assets = mock(MediaAssetRepository.class);
-    private final TrackListQueryService service = new TrackListQueryService(tracks,assets);
+    private final TrackListQueryService service = new TrackListQueryService(tracks,assets,new TrackSearchProperties(60,2000));
     private final TrackListParameters params = new TrackListParameters(0,20,new TrackListSort("id",false),null);
 
     private TrackListRow row(long id, Long cover) {
@@ -94,5 +95,21 @@ class TrackListQueryServiceTest {
                 fault.equals("digest") ? "invalid" : "a".repeat(64),fault.equals("bucket") ? "" : "private",fault.equals("key") ? "" : "secret");
         when(assets.findListCovers(Set.of(3L))).thenReturn(fault.equals("missing") ? List.of() : List.of(asset));
         assertThrows(IllegalStateException.class, () -> service.query(params,null));
+    }
+
+    @Test
+    void should_pass_identical_terms_and_budget_to_content_and_count() {
+        var terms = List.of("周杰伦", "晴天");
+        var search = new TrackListParameters(0, 20, params.sort(), null, terms);
+        when(tracks.findRows(TrackStatus.PUBLISHED, 0, 20, search.sort(), terms, 2000))
+                .thenReturn(List.of(row(42, null)));
+        when(tracks.count(TrackStatus.PUBLISHED, terms, 2000)).thenReturn(1L);
+        var result = service.query(search, TrackStatus.PUBLISHED);
+        assertEquals(1, result.items().size());
+        assertEquals(1L, result.totalElements());
+        verify(tracks).findRows(TrackStatus.PUBLISHED, 0, 20, search.sort(), terms, 2000);
+        verify(tracks).count(TrackStatus.PUBLISHED, terms, 2000);
+        verifyNoMoreInteractions(tracks);
+        verifyNoInteractions(assets);
     }
 }

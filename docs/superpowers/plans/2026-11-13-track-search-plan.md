@@ -110,20 +110,20 @@ public static String countSql(boolean filtered, int termCount, int timeoutMs);
 
 QueryService 构造器为 `TrackListQueryService(TrackListRepository tracks, MediaAssetRepository assets, TrackSearchProperties properties)`，public query 签名沿用现有入口。
 
-- [ ] **步骤 1** 新增搜索调用测试 `should_pass_identical_terms_and_budget_to_content_and_count`，词列表为 List.of("周杰伦","晴天")、预算为 2000。核验两条查询收到同一列表、PUBLISHED、offset=0、size=20，现有封面批次与 Long 分页断言继续执行。新增配置测试断言默认 60/2000、配置覆盖 30/500，以及 0、负数、整数溢出均导致启动失败。
-- [ ] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.track.service.TrackListQueryServiceTest" --tests "org.example.music.track.config.TrackSearchConfigTest" --console=plain`，记录缺失接口失败。
-- [ ] **步骤 3** 实现配置 record 的 @ConfigurationProperties、@Validated、@Min(1) 与默认值，并由 TrackSearchConfig 注册。在 application.properties 添加设计中的两个环境变量默认表达式，在 .env.example 添加 60 和 2000 两项示例。
-- [ ] **步骤 4** 实现搜索重载。内容 SQL 在候选 ID 子查询的分页前生成同一状态和多词谓词，COUNT 使用相同谓词构造逻辑，参数依次为 q0 至 q4。private 模式生成方法按 !、%、_ 的顺序转义。两条搜索 SQL 的最外层 SELECT 加配置化 MAX_EXECUTION_TIME，返回行复用现有投影转换。
-- [ ] **步骤 5** QueryService 按 hasSearch 选择相应 Repository 入口，搜索路径传入相同词列表与 queryTimeoutMs。保留现有 readOnly、REPEATABLE_READ、批量封面和 DTO 组装。更新手动构造 QueryService 的单元测试依赖。
-- [ ] **步骤 6** 在真实列表集成测试新增 `should_match_every_term_across_fields_and_count_only_visible_tracks`。构造标题/艺术家分别命中、专辑命中、只命中一个词、空专辑及三状态数据，断言 USER、ADMIN、管理员 USER 登录、状态筛选的精确 ID 与计数。新增 `should_search_literal_pattern_characters`，将含 `!%_\`、大小写/重音及 SQL 片段的数据与干扰行区分，断言精确命中集合。
-- [ ] **步骤 7** 新增 `should_keep_search_content_and_count_on_one_snapshot`，复用当前 Repository spy 与独立 JDBC 连接，在搜索 count 前归档一首已命中歌曲。当前响应内容和总数使用原快照，下一次请求反映归档。覆盖搜索空页、最深合法页、八种排序、共享封面批次、本页损坏资产及字段投影。新增断言示例如下，业务有封面三条查询加认证查询合计四条。
+- [x] **步骤 1** 新增搜索调用测试 `should_pass_identical_terms_and_budget_to_content_and_count`，词列表为 List.of("周杰伦","晴天")、预算为 2000。核验两条查询收到同一列表、PUBLISHED、offset=0、size=20，现有封面批次与 Long 分页断言继续执行。新增配置测试断言默认 60/2000、配置覆盖 30/500，以及 0、负数、整数溢出均导致启动失败。
+- [x] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.track.service.TrackListQueryServiceTest" --tests "org.example.music.track.config.TrackSearchConfigTest" --console=plain`，记录缺失接口失败。
+- [x] **步骤 3** 实现配置 record 的 @ConfigurationProperties、@Validated、@Min(1) 与默认值，并由 TrackSearchConfig 注册。在 application.properties 添加设计中的两个环境变量默认表达式，在 .env.example 添加 60 和 2000 两项示例。
+- [x] **步骤 4** 实现搜索重载。内容 SQL 在候选 ID 子查询的分页前生成同一状态和多词谓词，COUNT 使用相同谓词构造逻辑，参数依次为 q0 至 q4。private 模式生成方法按 !、%、_ 的顺序转义。两条搜索 SQL 的最外层 SELECT 加配置化 MAX_EXECUTION_TIME，返回行复用现有投影转换。
+- [x] **步骤 5** QueryService 按 hasSearch 选择相应 Repository 入口，搜索路径传入相同词列表与 queryTimeoutMs。保留现有 readOnly、REPEATABLE_READ、批量封面和 DTO 组装。更新手动构造 QueryService 的单元测试依赖。
+- [x] **步骤 6** 在真实列表集成测试新增 `should_match_every_term_across_fields_and_count_only_visible_tracks`。构造标题/艺术家分别命中、专辑命中、只命中一个词、空专辑及三状态数据，断言 USER、ADMIN、管理员 USER 登录、状态筛选的精确 ID 与计数。新增 `should_search_literal_pattern_characters`，将含 `!%_\`、大小写/重音及 SQL 片段的数据与干扰行区分，断言精确命中集合。
+- [x] **步骤 7** 新增 `should_keep_search_content_and_count_on_one_snapshot`，复用当前 Repository spy 与独立 JDBC 连接，在搜索 count 前归档一首已命中歌曲。当前响应内容和总数使用原快照，下一次请求反映归档。覆盖搜索空页、最深合法页、八种排序、共享封面批次、本页损坏资产及字段投影。新增断言示例如下，业务有封面三条查询加认证查询合计四条。
 
 ```java
 assertEquals(4, TrackListIntegrationTest.SqlCapture.statements().size());
 assertEquals(List.of("周杰伦", "晴天"), parameters.searchTerms());
 ```
 
-- [ ] **步骤 8** 新建真实超时测试，复用当前 MySQL 8.4、Redis、MockMvc、JWT 和 StatementInspector 注册方式。测试属性设预算 200 毫秒、连接池上限 1，种入必命中歌曲。内部 Inspector 用 ThreadLocal 区分 CONTENT、COUNT，分别只对目标搜索 SQL 的 WHERE 追加固定 `SLEEP(10)=0`，保留原 MAX_EXECUTION_TIME 和绑定值。两个测试名为 `should_return_503_when_search_content_query_exceeds_mysql_budget`、`should_return_503_when_search_count_query_exceeds_mysql_budget`。
+- [x] **步骤 8** 新建真实超时测试，复用当前 MySQL 8.4、Redis、MockMvc、JWT 和 StatementInspector 注册方式。测试属性设预算 200 毫秒、连接池上限 1，种入必命中歌曲。内部 Inspector 用 ThreadLocal 区分 CONTENT、COUNT，分别只对目标搜索 SQL 的 WHERE 追加固定 `SLEEP(10)=0`，保留原 MAX_EXECUTION_TIME 和绑定值。两个测试名为 `should_return_503_when_search_content_query_exceeds_mysql_budget`、`should_return_503_when_search_count_query_exceeds_mysql_budget`。
 
 ```java
 assertEquals(503, result.getResponse().getStatus());
@@ -134,10 +134,10 @@ assertEquals("HY000", sqlException.getSQLState());
 
   同时断言 ProblemDetail code=TRACK_STORE_UNAVAILABLE。sqlException 从 MvcResult 的已解析异常原因链取得。finally 清理 Inspector 后再次搜索成功，测试整体设置 20 秒兜底。MySQL 文档给出嵌入 WHERE 的 SLEEP 因预算中断返回 3024 的行为依据。[MySQL SLEEP](https://dev.mysql.com/doc/refman/8.4/en/miscellaneous-functions.html#function_sleep)
 
-- [ ] **步骤 9** 新建搜索执行计划测试，参照既有 TrackListQueryIntegrationTest 使用独立 MySQL、Flyway、批量 JDBC 和 NamedParameterJdbcTemplate，直接调用上述生产 SQL 工厂并绑定样本词。i 从 0 至 9999，ID 为 i+1，标题为“晴天现场 ”加 i%101，艺术家在偶数 i 为“周杰伦”、奇数 i 为“其他歌手”，专辑在 i%5=0 时为 null、其余为“十一月的萧邦”。状态按 i%3 对应 DRAFT、PUBLISHED、ARCHIVED，时间使用固定 UTC 基准加 i%31 秒。
+- [x] **步骤 9** 新建搜索执行计划测试，参照既有 TrackListQueryIntegrationTest 使用独立 MySQL、Flyway、批量 JDBC 和 NamedParameterJdbcTemplate，直接调用上述生产 SQL 工厂并绑定样本词。i 从 0 至 9999，ID 为 i+1，标题为“晴天现场 ”加 i%101，艺术家在偶数 i 为“周杰伦”、奇数 i 为“其他歌手”，专辑在 i%5=0 时为 null、其余为“十一月的萧邦 November”。状态按 i%3 对应 DRAFT、PUBLISHED、ARCHIVED，时间使用固定 UTC 基准加 i%31 秒。
 
   全部状态搜索“晴”匹配 10000 首，PUBLISHED 匹配 3333 首。搜索“周杰伦 晴天”及“晴 天 现 场 周”分别匹配全部状态 5000 首、PUBLISHED 1666 首。“不存在词XYZ”匹配 0 首。首屏覆盖四字段双向排序，高频词和五词组合补充 size=100、offset=10000。内容和 COUNT 分别记录 EXPLAIN 与 EXPLAIN ANALYZE 到 `build/reports/track-search-query-plans.md`，预期 ID、排序与页切片由上述固定样本独立计算，并记录实际扫描行数和耗时。
-- [ ] **步骤 10** 执行 `.\gradlew.bat test --tests "org.example.music.track.service.TrackListQueryServiceTest" --tests "org.example.music.track.config.TrackSearchConfigTest" --tests "org.example.music.track.TrackList*" --tests "org.example.music.track.TrackSearchTimeoutIntegrationTest" --tests "org.example.music.track.TrackSearchQueryPlanIntegrationTest" --console=plain`，汇总 XML，必要容器测试全部实跑后提交任务 2 文件，说明为 `feat: 实现歌曲多词搜索与查询执行预算`。
+- [x] **步骤 10** 执行 `.\gradlew.bat test --tests "org.example.music.track.service.TrackListQueryServiceTest" --tests "org.example.music.track.config.TrackSearchConfigTest" --tests "org.example.music.track.TrackList*" --tests "org.example.music.track.TrackSearchTimeoutIntegrationTest" --tests "org.example.music.track.TrackSearchQueryPlanIntegrationTest" --console=plain`，汇总 XML，必要容器测试全部实跑后提交任务 2 文件，说明为 `feat: 实现歌曲多词搜索与查询执行预算`。
 
 ## 任务 3 搜索额度、HTTP 故障与调用顺序
 
@@ -216,3 +216,5 @@ $searchReviewExitCode = $LASTEXITCODE
 建议在当前会话逐任务实施，三个实现任务共享参数和仓储调用接口，便于连续核对普通列表回归与真实依赖行为。计划由用户审阅后确认执行方式，再按复选框推进。
 
 任务 1 实际验证为 BUILD SUCCESSFUL，2 个套件、63 通过、0 失败、0 错误、0 跳过。先执行测试记录了新增接口缺失的 7 个编译错误，再完成实现和 HTTP 契约验证。
+
+任务 2 实际验证分两组执行。查询及真实超时组 4 套件、64 通过、0 失败、0 错误、0 跳过，1分23秒。原列表及搜索计划组 2 套件、2 通过、0 失败、0 错误、0 跳过，补齐英文正命中与返回100行场景后复跑1分15秒。新增接口先记录11个编译错误。查询计划共88组，完整产物为build/reports/track-search-query-plans.md。
