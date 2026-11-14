@@ -1,6 +1,6 @@
 # H02 播放进度保存接口实施计划
 
-> 执行者遵循 AGENTS.md，由 Codex 在本会话逐任务实施，Claude Code CLI 负责独立只读实现审核。步骤使用复选框跟踪实际结果。计划采用本会话原生执行方式，实施前按 writing-plans 完成用户计划审阅。
+> 执行者遵循 AGENTS.md，由 Codex 在本会话逐任务实施，Claude Code CLI 负责独立只读实现审核。步骤使用复选框跟踪实际结果。用户已于 2026-11-15 确认本计划并授权本会话逐任务实施。
 
 **目标** 实现 `PUT /api/v1/users/me/playback-progress/{deviceId}`，按当前用户与设备保存最近歌曲及整秒位置，并保护重复与乱序上报。
 
@@ -203,9 +203,9 @@ Controller 的 deviceId 使用 PathVariable 与完整 UUID Pattern 校验，acto
 
 **输出接口** 可核验的中文 API、完整 check 测试数量、独立审核来源与结论、全部意见处置及 accepted 后的完成登记。
 
-- [ ] **步骤 1** 编写 `docs/api/playback/save-playback-progress.md`，逐项记录 Method、完整路径、用途、认证、角色与归属、三个字段类型和上限、UUID 规则、时长、序号/重试/删除语义、成功响应、错误码、限流与可执行 curl。客户端接入部分说明设备身份和序号生命周期、每 5 秒及关键事件保存、自然结束归零、多页面协调。
-- [ ] **步骤 2** 对照实际 OpenAPI `/v3/api-docs` 验证路径、唯一 PUT、请求 DTO、200 五字段及所有错误响应。检查 curl 仅用环境变量 Token、示意 UUID 与歌曲 ID。将执行后的任务复选框及设计状态按事实更新。
-- [ ] **步骤 3** 执行完整命令并保存控制台日志。
+- [x] **步骤 1** 编写 `docs/api/playback/save-playback-progress.md`，逐项记录 Method、完整路径、用途、认证、角色与归属、三个字段类型和上限、UUID 规则、时长、序号/重试/删除语义、成功响应、错误码、限流与可执行 curl。客户端接入部分说明设备身份和序号生命周期、每 5 秒及关键事件保存、自然结束归零、多页面协调。
+- [x] **步骤 2** 对照实际 OpenAPI `/v3/api-docs` 验证路径、唯一 PUT、请求 DTO、200 五字段及所有错误响应。检查 curl 仅用环境变量 Token、示意 UUID 与歌曲 ID。将执行后的任务复选框及设计状态按事实更新。
+- [x] **步骤 3** 执行完整命令并保存控制台日志。
 
 ```powershell
 $env:MINIO_INTEGRATION_TESTS = "true"
@@ -214,7 +214,7 @@ $env:MINIO_INTEGRATION_TESTS = "true"
 
 按 `build/test-results/test/TEST-*.xml` 汇总套件、通过、失败、错误、跳过数量。若增量执行导致缺少本次实际验证证据，执行同环境下的 `cleanTest check`。必要 MySQL、Redis、MinIO 测试均实跑后准备送审。
 
-- [ ] **步骤 4** 核对完整 Git diff、untracked、暂存文件和新迁移，并运行 git diff --check。审核请求披露既有 `.gitignore` 改动及其来源，写明实施基线、当前提交、唯一接口、权限、全部变更、API/迁移、实际命令和数量、默认项及首次反馈记录“不涉及”。提交本轮实现及材料，记录精确 SHA。
+- [x] **步骤 4** 核对完整 Git diff、untracked、暂存文件和新迁移，并运行 git diff --check。审核请求披露既有 `.gitignore` 改动及其来源，写明实施基线、当前提交、唯一接口、权限、全部变更、API/迁移、实际命令和数量、默认项及首次反馈记录“不涉及”。提交本轮实现及材料，记录精确 SHA。
 - [ ] **步骤 5** 在项目根目录调用 Claude Code CLI，只读工具为 Read,Glob,Grep,Bash，禁用 Write,Edit,NotebookEdit。提示先读 AGENTS.md、CLAUDE.md、当前请求及历史记录，独立完整验证并从 XML 计数。保存 `build/reports/playback-progress-save-review-round1.json` 与对应 stderr 日志，持续监控到退出，核对退出码、JSON、is_error、result、permission_denials、session_id 与 modelUsage。
 
 ```powershell
@@ -249,4 +249,4 @@ $progressReviewResponse.result
 - 设计第 10、11 节由文件表、各任务验证及任务 5 覆盖，审查重点的五类输入均定位到具体测试步骤。
 - 前后任务共享 DTO、Row、仓库与服务签名一致。测试命令使用实际 Gradle Wrapper，完整验证及正式审核步骤包含真实依赖与 XML 计数。
 
-计划待用户审阅。执行方式沿用项目约定，由 Codex 在本会话实施并提交 Claude Code CLI 独立审核。
+任务 1 至任务 4 已完成。阶段提交为 ab4a5c2、403d127、f97c2d1、7020cfc。请求读取单测 50/0/0/0，事务与真实 MySQL 仓库组 31/0/0/0，限流配置与真实 Redis 组 36/0/0/0，最终模块回归为 11 个套件 165/0/0/0。完整自验设置 MINIO_INTEGRATION_TESTS=true 并执行 cleanTest check，210 套件 2541/0/0/0，耗时 1422.85 秒，XML 已归档 build/reports/playback-progress-save-self-check-xml。任务 5 正在提交 Claude Code CLI 独立审核。
