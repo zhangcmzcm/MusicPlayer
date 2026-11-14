@@ -158,11 +158,11 @@ IntegrationSupport 位于 playback 测试包，使用 MySQL 8.4、Redis 7.4、�
 
 **输出接口** `PlaybackProgressProperties(int rateLimitPerMinute)`，默认 120 且 Min(1)，配置前缀 `app.playback-progress`。`PlaybackProgressRateLimiter.consumeOrThrow(Integer userId)`。RateLimitedException 构造器接收 long 并提供 `getRetryAfterSeconds()`，RateLimitUnavailableException 构造器接收 Throwable。
 
-- [ ] **步骤 1** 编写单测 `should_use_per_user_key_and_configured_limit`、`should_map_corrupt_script_result_to_unavailable` 及配置测试，断言键 `music:playback-progress:user:7`、参数 120，默认值 120，覆盖值生效，0 和负配置启动校验失败。
-- [ ] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressRateLimiterTest" --tests "org.example.music.playback.config.PlaybackProgressConfigTest" --console=plain`，记录组件缺失失败。
-- [ ] **步骤 3** 实现原子固定窗口脚本与结果解码。首次 SET PX 60000，获准后 INCR，超限以剩余毫秒向上取整得到 Retry-After。错误类型、无 TTL、越界计数、错误返回值及 Redis 异常映射专用 503。配置通过 EnableConfigurationProperties 注册，环境变量默认 120。
-- [ ] **步骤 4** 增加真实 Redis 用例 `should_admit_exactly_120_concurrent_attempts`，同时发起 140 次并断言恰好 120 获准。验证用户键隔离、窗口首请求 TTL、拒绝请求 TTL 继续递减、临近到期 Retry-After 至少 1、到期恢复、配置额度降低、损坏类型及计数、短暂不可用。使用独立容器和精确键清理。
-- [ ] **步骤 5** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressRateLimiterTest" --tests "org.example.music.playback.service.PlaybackProgressRateLimiterIntegrationTest" --tests "org.example.music.playback.config.PlaybackProgressConfigTest" --console=plain`，核对真实 Redis 结果后提交，说明为 `feat: 增加播放进度账号共享限流`。
+- [x] **步骤 1** 编写单测 `should_use_per_user_key_and_configured_limit`、`should_map_corrupt_script_result_to_unavailable` 及配置测试，断言键 `music:playback-progress:user:7`、参数 120，默认值 120，覆盖值生效，0 和负配置启动校验失败。
+- [x] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressRateLimiterTest" --tests "org.example.music.playback.config.PlaybackProgressConfigTest" --console=plain`，记录组件缺失失败。
+- [x] **步骤 3** 实现原子固定窗口脚本与结果解码。首次 SET PX 60000，获准后 INCR，超限以剩余毫秒向上取整得到 Retry-After。错误类型、无 TTL、越界计数、错误返回值及 Redis 异常映射专用 503。配置通过 EnableConfigurationProperties 注册，环境变量默认 120。
+- [x] **步骤 4** 增加真实 Redis 用例 `should_admit_exactly_120_concurrent_attempts`，同时发起 140 次并断言恰好 120 获准。验证用户键隔离、窗口首请求 TTL、拒绝请求 TTL 继续递减、临近到期 Retry-After 至少 1、到期恢复、配置额度降低、损坏类型及计数、短暂不可用。使用独立容器和精确键清理。
+- [x] **步骤 5** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressRateLimiterTest" --tests "org.example.music.playback.service.PlaybackProgressRateLimiterIntegrationTest" --tests "org.example.music.playback.config.PlaybackProgressConfigTest" --console=plain`，核对真实 Redis 结果后提交，说明为 `feat: 增加播放进度账号共享限流`。
 
 ## 任务 4 HTTP 接入、故障与并发验证
 
