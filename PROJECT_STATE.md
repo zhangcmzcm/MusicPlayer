@@ -1,5 +1,25 @@
 # 音乐播放器后端交接记录
 
+<!-- PLAYBACK-PROGRESS-HANDOFF-BEGIN PH-20261115-playback-progress-save-01 -->
+## H02-A 当前进度，2026-11-15
+
+PUT /api/v1/users/me/playback-progress/{deviceId}已完成实现、V11迁移、中文API、完整验证及第1轮独立审核accepted。工作目录为D:\code\Java-code\projects\music，分支main，实施基线c546a1a，阶段提交ab4a5c2、403d127、f97c2d1、7020cfc，完整送审763c7a7。交接编号PH-20261115-playback-progress-save-01。
+
+用户已确认每个用户与逻辑设备保存一份最近歌曲和整数秒进度，设备UUID由客户端持久保存，重启和重新登录接续序号。USER仅可保存PUBLISHED，ADMIN按登录角色判断。较大sequence更新，同号同内容幂等，小号或同号异内容409并带currentSequence。自然结束保存同歌0秒，正常播放每5秒产生事件，关键操作立即上报。Redis账号共享首请求60秒窗口默认120次。V11中歌曲删除置空关联并保留序号，用户删除级联清理。
+
+Codex完整自验210套件2541通过、0失败、0错误、0跳过，耗时1422.85秒。Claude独立首跑210套件2540/1/0/0，既有PasswordResetQueueIntegrationTest在short-ttl用例准备enqueue时失败，专项复跑18/0/0/0，最终独立完整复跑210套件2541/0/0/0、23分22秒。完整验证均设置MINIO_INTEGRATION_TESTS=true并执行cleanTest check，MySQL、Redis、MinIO实跑。本接口模块11套件165/0/0/0，两次独立全量中均通过。
+
+第1/3轮审核accepted，零阻断项，NOTE-001已排入O10独立调查。失败事实已核实，实际Lua reply、两次Redis时间与清理后状态缺少当时采样，具体根因待核实。审核报告的时间回拨归因作为调查假设记录，原文完整保留。相关user代码、测试与Lua对本轮基线差异为空。
+
+审核会话8090ebaa-46b1-43af-a5ab-2fc93fe348d3，实际modelUsage为mimo-v2.6-pro。CLI退出0、is_error=false、permission_denials为空，总耗时3478.51秒。原始JSON、stderr、prompt与进程结果位于build/reports/playback-progress-save-review-round1对应文件。审核原文与Codex逐项处置为[审核记录](docs/reviews/2026-11-15-playback-progress-save-review.md)。
+
+自验日志为build/playback-progress-save-self-check.log，XML为build/reports/playback-progress-save-self-check-xml。独立首跑日志为build/playback-progress-save-independent-check.log，原始XML为build/reports/playback-progress-save-independent-check-xml。最终日志为build/playback-progress-save-independent-check-rerun.log，XML为build/reports/playback-progress-save-independent-check-rerun-xml。Codex另保留independent-first-attempt与independent-final-check-xml证据，最终210个XML已逐文件校验一致。
+
+权威资料为[设计](docs/superpowers/specs/2026-11-14-playback-progress-save-design.md)、[计划](docs/superpowers/plans/2026-11-15-playback-progress-save-plan.md)、[API](docs/api/playback/save-playback-progress.md)及上述审核记录。H02保存部分以H02-A移入任务书完成区，H02读取部分继续独立规划。当前构建与审核均已退出，收尾登记为审核、任务书及状态文档，代码、测试和API对应accepted快照763c7a7。
+
+工作区另有既有.gitignore改动，增加docs/learning忽略规则，已在审核范围披露。后续单接口由用户选定，接续先核对Git、审核及任务书当前记录。
+<!-- PLAYBACK-PROGRESS-HANDOFF-END PH-20261115-playback-progress-save-01 -->
+
 <!-- TRACK-SEARCH-HANDOFF-BEGIN PH-20261114-track-search-01 -->
 ## T04 当前进度，2026-11-14
 

@@ -4,7 +4,7 @@
 
 设计核对基线为 `main @ 0c854d96cad44c960575605bdf1033cd56dc2572`，工作目录为 `D:\code\Java-code\projects\music`。设计开始时存在一项既有工作区改动，`.gitignore` 增加 `docs/learning` 忽略规则。
 
-用户已确认设备独立保存、整数秒精度、播放权限、客户端持久 UUID、过期请求保护、自然结束归零、上报时机、未知时长处理、方案 A，以及接口契约、乱序与重试、持久化与事务、限流与验证四部分设计。用户于 2026-11-15 确认书面设计、[实施计划](../plans/2026-11-15-playback-progress-save-plan.md)并授权逐任务实施。当前实现与中文 API 已完成，模块回归为 11 套件 165/0/0/0，带 MinIO 的完整 cleanTest check 为 210 套件 2541/0/0/0，依次表示通过、失败、错误、跳过。完整自验耗时 1422.85 秒，正在提交独立实现审核。
+用户已确认设备独立保存、整数秒精度、播放权限、客户端持久 UUID、过期请求保护、自然结束归零、上报时机、未知时长处理、方案 A，以及接口契约、乱序与重试、持久化与事务、限流与验证四部分设计。用户于 2026-11-15 确认书面设计、[实施计划](../plans/2026-11-15-playback-progress-save-plan.md)并授权逐任务实施。当前实现、V11、中文 API 与验证已完成，第1轮独立审核accepted。自验与最终独立完整验证均为210套件2541/0/0/0，MySQL、Redis、MinIO实跑。独立首跑一次既有队列测试失败及专项、完整复跑记录已保留，NOTE-001排入O10独立调查，详见[审核与处置](../../reviews/2026-11-15-playback-progress-save-review.md)。
 
 ## 1. 目标与交付范围
 
@@ -150,7 +150,7 @@ Service 使用方法级认证保护。当前认证主体提供用户和登录角
 
 ## 6. 数据模型与生命周期
 
-新增 `user_playback_progress` 表。设计时已有迁移为 V1 至 V10，新文件预计为 `V11__create_user_playback_progress.sql`，实施前核对实际最大版本号。
+新增 `user_playback_progress` 表。设计时已有迁移为 V1 至 V10，本次新增 `V11__create_user_playback_progress.sql`，已由真实 MySQL 8.4 执行验证。
 
 | 列 | 数据库类型 | 约束与用途 |
 | --- | --- | --- |
@@ -252,7 +252,7 @@ Redis 连接、脚本或计数状态异常返回 503 `PLAYBACK_PROGRESS_RATE_LIM
 
 - `src/main/java/org/example/music/playback/` 下新增本接口所需的 Controller、请求与响应 DTO、严格解析组件、Service、事务 Service、Repository、配置与业务异常。
 - `src/main/java/org/example/music/common/exception/GlobalExceptionHandler.java` 增加本接口异常映射。
-- `src/main/resources/db/migration/V11__create_user_playback_progress.sql` 新建进度表，版本号以实施时核对为准。
+- `src/main/resources/db/migration/V11__create_user_playback_progress.sql` 新建进度表。
 - `src/main/resources/application.properties` 和 `.env.example` 增加限流额度配置。
 - `src/test/java/org/example/music/playback/` 下新增 HTTP、业务、仓库与真实依赖集成测试，必要时补充现有异常响应回归用例。
 - `docs/api/playback/save-playback-progress.md` 记录完整契约、权限、请求响应、错误码与可执行 curl。

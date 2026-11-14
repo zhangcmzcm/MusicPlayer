@@ -215,7 +215,7 @@ $env:MINIO_INTEGRATION_TESTS = "true"
 按 `build/test-results/test/TEST-*.xml` 汇总套件、通过、失败、错误、跳过数量。若增量执行导致缺少本次实际验证证据，执行同环境下的 `cleanTest check`。必要 MySQL、Redis、MinIO 测试均实跑后准备送审。
 
 - [x] **步骤 4** 核对完整 Git diff、untracked、暂存文件和新迁移，并运行 git diff --check。审核请求披露既有 `.gitignore` 改动及其来源，写明实施基线、当前提交、唯一接口、权限、全部变更、API/迁移、实际命令和数量、默认项及首次反馈记录“不涉及”。提交本轮实现及材料，记录精确 SHA。
-- [ ] **步骤 5** 在项目根目录调用 Claude Code CLI，只读工具为 Read,Glob,Grep,Bash，禁用 Write,Edit,NotebookEdit。提示先读 AGENTS.md、CLAUDE.md、当前请求及历史记录，独立完整验证并从 XML 计数。保存 `build/reports/playback-progress-save-review-round1.json` 与对应 stderr 日志，持续监控到退出，核对退出码、JSON、is_error、result、permission_denials、session_id 与 modelUsage。
+- [x] **步骤 5** 在项目根目录调用 Claude Code CLI，只读工具为 Read,Glob,Grep,Bash，禁用 Write,Edit,NotebookEdit。提示先读 AGENTS.md、CLAUDE.md、当前请求及历史记录，独立完整验证并从 XML 计数。保存 `build/reports/playback-progress-save-review-round1.json` 与对应 stderr 日志，持续监控到退出，核对退出码、JSON、is_error、result、permission_denials、session_id 与 modelUsage。
 
 ```powershell
 $progressReviewRequest = "docs/reviews/2026-11-15-playback-progress-save-review-request.md"
@@ -237,9 +237,9 @@ $progressReviewResponse = Get-Content -LiteralPath $progressReviewResult -Raw -E
 if ($progressReviewResponse.is_error) { throw "Claude 返回执行错误，请检查原始输出" }
 $progressReviewResponse.result
 ```
-- [ ] **步骤 6** 将原始 result 保存到正式 review，并记录其来源。对 needs_revision 按原编号核实问题、分级与方向，完成范围内修复或补证、验证及材料更新。复审使用原 session_id 的 --resume，按轮次分别保存输出。三轮协议及 escalated 处理按 AGENTS.md 执行。
-- [ ] **步骤 7** 收到有效 accepted 后登记所有非阻断项处置，将 H02 保存接口移入已完成区，并保留 H02 读取接口的待设计记录，更新 PROJECT_STATE 和设计/计划实际结果，提交收尾文档。
-- [ ] **步骤 8** 向用户汇报唯一接口、实际测试数量、独立审核结论与轮次、提交号、API/迁移路径，以及实际未决事项或默认项。
+- [x] **步骤 6** 将原始 result 保存到正式 review，并记录其来源。对 needs_revision 按原编号核实问题、分级与方向，完成范围内修复或补证、验证及材料更新。复审使用原 session_id 的 --resume，按轮次分别保存输出。三轮协议及 escalated 处理按 AGENTS.md 执行。
+- [x] **步骤 7** 收到有效 accepted 后登记所有非阻断项处置，将 H02 保存接口移入已完成区，并保留 H02 读取接口的待设计记录，更新 PROJECT_STATE 和设计/计划实际结果，提交收尾文档。
+- [x] **步骤 8** 向用户汇报唯一接口、实际测试数量、独立审核结论与轮次、提交号、API/迁移路径，以及实际未决事项或默认项。
 
 ## 计划自查记录
 
@@ -249,4 +249,4 @@ $progressReviewResponse.result
 - 设计第 10、11 节由文件表、各任务验证及任务 5 覆盖，审查重点的五类输入均定位到具体测试步骤。
 - 前后任务共享 DTO、Row、仓库与服务签名一致。测试命令使用实际 Gradle Wrapper，完整验证及正式审核步骤包含真实依赖与 XML 计数。
 
-任务 1 至任务 4 已完成。阶段提交为 ab4a5c2、403d127、f97c2d1、7020cfc。请求读取单测 50/0/0/0，事务与真实 MySQL 仓库组 31/0/0/0，限流配置与真实 Redis 组 36/0/0/0，最终模块回归为 11 个套件 165/0/0/0。完整自验设置 MINIO_INTEGRATION_TESTS=true 并执行 cleanTest check，210 套件 2541/0/0/0，耗时 1422.85 秒，XML 已归档 build/reports/playback-progress-save-self-check-xml。任务 5 正在提交 Claude Code CLI 独立审核。
+全部任务已完成。阶段提交为 ab4a5c2、403d127、f97c2d1、7020cfc，完整送审763c7a7。请求读取单测50/0/0/0，事务与真实MySQL仓库组31/0/0/0，限流配置与真实Redis组36/0/0/0，最终模块回归11套件165/0/0/0。带MinIO的完整自验210套件2541/0/0/0，耗时1422.85秒。独立首跑2540/1/0/0，既有队列专项复跑18/0/0/0，最终独立完整复跑210套件2541/0/0/0。第1轮审核accepted，NOTE-001排入O10，根因待独立取证，来源与实际处置见[审核记录](../../reviews/2026-11-15-playback-progress-save-review.md)。

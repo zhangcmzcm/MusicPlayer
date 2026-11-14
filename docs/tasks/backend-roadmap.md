@@ -1,6 +1,6 @@
 # 音乐播放器后端任务书
 
-更新日期为2026-11-14。核对实现基线main @ 7a58bae，最新独立完整验证199套件2376通过、0失败、0错误、0跳过，详见[歌曲搜索审核](../reviews/2026-11-13-track-search-review.md)。
+更新日期为2026-11-15。核对实现基线main @ 763c7a7，最新独立完整验证210套件2541通过、0失败、0错误、0跳过，详见[播放进度保存审核](../reviews/2026-11-15-playback-progress-save-review.md)。独立首跑的一次既有队列测试失败及专项、完整复跑记录已保留，NOTE-001登记O10独立调查。
 
 本文维护接口需求、工程优化及审核完成记录。未完成区登记下一步候选，完成区集中保存已交付能力和历史验证证据。
 
@@ -51,7 +51,7 @@
 | 编号 | 优先级 | 任务 | 接口规划 | 目标与待确认事项 |
 | --- | --- | --- | --- | --- |
 | H01 | P2 | 最近播放 | 待设计，播放上报/历史读取分别实施 | 展示最近听过的歌曲，确认何时记为一次播放、去重、保留期限及分页。 |
-| H02 | P2 | 播放进度保存 | 待设计，保存/读取分别实施 | 恢复上次播放位置，确认秒或毫秒精度、完成阈值、多设备覆盖及写入频率。 |
+| H02 | P2 | 播放进度读取 | 待设计，独立读取接口 | H02-A已交付本人设备最近歌曲及整秒进度保存。后续确认读取响应、空状态和歌曲不可见或删除时的恢复行为。 |
 | L01 | P2 | 歌词管理与读取 | 待设计，上传/编辑/读取分别实施 | 提供LRC或文本歌词，支持前端同步展示，确认来源、编码、大小、权限及存储方式。 |
 | C01 | P2 | 歌手与专辑页面 | 待设计，按资源及单接口拆解 | 从现有元数据需求出发，确认歌手/专辑实体、同名合并、封面、曲序与分页。 |
 | R01 | P3 | 个性化推荐 | 待设计，依赖收藏/历史等数据 | 根据歌曲元数据、歌手、标签及用户行为制定可解释推荐，确认冷启动、更新频率及结果分页。 |
@@ -80,7 +80,7 @@
 | O07 | P2 | 歌曲存储故障文案修正 | 不新增接口；GlobalExceptionHandler | 将 TRACK_STORE_UNAVAILABLE 当前“歌曲草稿暂时无法更新”改为适用于读取与写入的中性文案，保持稳定 code 与 HTTP 状态。来自详情审核非阻断项。 |
 | O08 | P2 | 封面一致性专用异常 | 不新增接口；track 模块 | 用模块专用异常表达封面资产缺失或类型不符，替代裸 IllegalStateException，保持外部 500 INTERNAL_ERROR 契约，改善日志定位。来自详情审核非阻断项。 |
 | O09 | P1 | 核心链路性能基线 | 不新增业务接口；压测及现有指标 | 测量认证、列表、搜索、封面、播放的请求量、P95/P99、MySQL 查询数、连接池和存储吞吐；根据结果决定缓存/索引/限流，不用推测代替性能验证。 |
-| O10 | P2 | CI 与真实集成测试保障 | 不新增业务接口；构建流程 | 核对现有 CI，确保 Gradle check、MySQL/Redis/MinIO 真容器回归、测试数量及 skipped 检查在合并前执行；保留报告，不能以缓存未执行或跳过冒充通过。 |
+| O10 | P2 | CI 与真实集成测试保障 | 不新增业务接口；构建流程 | 核对现有 CI，确保 Gradle check、MySQL/Redis/MinIO 真容器回归、测试数量及 skipped 检查在合并前执行；保留报告，不能以缓存未执行或跳过冒充通过。另登记H02-A审核NOTE-001，既有PasswordResetQueueIntegrationTest准备enqueue时曾失败一次，专项与最终全量已通过。独立调查实际Lua reply、admit/enqueue的Redis时间及清理后状态，根因待核实，证据见[审核与处置](../reviews/2026-11-15-playback-progress-save-review.md)。 |
 | O13 | P2 | 播放接口局部清理 | 不新增接口；Range 解析、错误 Advice、流日志 | 来自 T03 审核非阻断项：合并 Range 单位判定并固定 bytes =0-1 的非法语法归属；收窄错误 Advice supports；区分提交前失败与已提交中断日志。独立小任务，保持外部契约，修改后完整真实容器回归。 |
 | O14 | P2 | 本人资料共享时间映射 | 不新增接口；user 模块响应映射 | 来自 U02 审核非阻断项：提取 GET/PATCH 两处 createdAt 文本到 UTC Instant 的转换，避免语义漂移；保持六字段契约、微秒精度和显式 null，独立验证两接口后再合入。 |
 | O15 | P2 | 管理员启动密码边界 | 不新增接口；AdminBootstrapInitializer 与部署文档 | 注册密码修复审核 NOTE-001：初始化实际创建管理员时，密码只检查非空白，超过 BCrypt UTF-8 72 字节上限会导致启动失败。独立设计启动配置校验或部署约束；是否完整采用 8—72 个可打印 ASCII 字符需先确认，保持已有账户登录兼容，不在注册修复中扩改。 |
@@ -111,6 +111,7 @@ F03审核非阻断后续事项：NOTE-001在查询维护时共享生产与计划
 
 | 任务编号 | 状态 | 设计/计划 | API 文档 | 提交与审核结论 |
 | --- | --- | --- | --- | --- |
+| H02-A 保存本设备播放进度 | 已完成 | [设计](../superpowers/specs/2026-11-14-playback-progress-save-design.md) / [计划](../superpowers/plans/2026-11-15-playback-progress-save-plan.md) | [保存进度API](../api/playback/save-playback-progress.md) | PUT /api/v1/users/me/playback-progress/{deviceId}。按用户与设备保存最近歌曲及整秒位置，sequence保护乱序，V11保留删除后序号。实现ab4a5c2、403d127、f97c2d1、7020cfc，送审763c7a7。第1轮accepted，最终独立210套件2541/0/0/0，MySQL/Redis/MinIO实跑。NOTE-001已登记O10，实际模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-15-playback-progress-save-review.md) |
 | T04 歌曲模糊搜索 | 已完成 | [设计](../superpowers/specs/2026-11-13-track-search-design.md) / [计划](../superpowers/plans/2026-11-13-track-search-plan.md) | [歌曲列表与搜索API](../api/track/list-tracks.md) | GET /api/v1/tracks扩展q，源码0b0f359、324eedb、07cffad，送审7a58bae。第1轮accepted，第2轮证据复核撤销NOTE-001，零未决项。独立199套件2376/0/0/0，MySQL/Redis/MinIO实跑。本机模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-13-track-search-review.md) |
 | F03 本人收藏列表 | 已完成 | [设计](../superpowers/specs/2026-11-12-favorite-list-design.md) / [计划](../superpowers/plans/2026-11-12-favorite-list-plan.md) | [收藏列表API](../api/favorite/list-favorites.md) | GET /api/v1/users/me/favorites。送审68af0a4，第1轮accepted，独立194套件2293/0/0/0，MySQL/Redis/MinIO实跑。Claude Code实际模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-13-favorite-list-review.md) |
 | F02 取消收藏歌曲 | 已完成 | [设计](../superpowers/specs/2026-11-12-unfavorite-track-design.md) / [计划](../superpowers/plans/2026-11-12-unfavorite-track-plan.md) | [取消收藏API](../api/favorite/unfavorite-track.md) | `DELETE /api/v1/users/me/favorites/{trackId}`。实现cbdeb5c、6a6e036、a6b9a86，送审95893fe。自动独立实现第1轮accepted，185类2169/0/0/0，MySQL/Redis/MinIO实跑。本机Claude Code默认模型mimo-v2.6-pro，[审核与处置](../reviews/2026-11-12-unfavorite-track-review.md) |
