@@ -1,5 +1,13 @@
 package org.example.music.common.exception;
 
+import org.example.music.playback.exception.PlaybackProgressValidationException;
+import org.example.music.playback.exception.PlaybackProgressUnsupportedMediaTypeException;
+import org.example.music.playback.exception.PlaybackProgressStaleSequenceException;
+import org.example.music.playback.exception.PlaybackProgressSequenceConflictException;
+import org.example.music.playback.exception.PlaybackProgressRateLimitedException;
+import org.example.music.playback.exception.PlaybackProgressRateLimitUnavailableException;
+import org.example.music.playback.exception.PlaybackProgressStoreUnavailableException;
+
 import org.example.music.favorite.exception.FavoriteStoreUnavailableException;
 import org.example.music.favorite.exception.FavoriteListValidationException;
 import org.example.music.user.exception.EmailChangeValidationException;
@@ -122,6 +130,71 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(PlaybackProgressValidationException.class)
+    public ResponseEntity<ProblemDetail> handlePlaybackProgressValidation(
+            PlaybackProgressValidationException exception, HttpServletRequest request) {
+        return ResponseEntity.badRequest().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(problem(request, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "播放进度请求不合法", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlaybackProgressUnsupportedMediaTypeException.class)
+    public ResponseEntity<ProblemDetail> handlePlaybackProgressMediaType(
+            PlaybackProgressUnsupportedMediaTypeException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(problem(request, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE", "请求媒体类型不支持", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlaybackProgressStaleSequenceException.class)
+    public ResponseEntity<ProblemDetail> handlePlaybackProgressStale(
+            PlaybackProgressStaleSequenceException exception, HttpServletRequest request) {
+        ProblemDetail detail = problem(request, HttpStatus.CONFLICT, "PLAYBACK_PROGRESS_STALE_SEQUENCE",
+                "播放进度上报已过期", exception.getMessage());
+        detail.setProperty("currentSequence", exception.getCurrentSequence());
+        return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(org.springframework.http.CacheControl.noStore()).body(detail);
+    }
+
+    @ExceptionHandler(PlaybackProgressSequenceConflictException.class)
+    public ResponseEntity<ProblemDetail> handlePlaybackProgressSequenceConflict(
+            PlaybackProgressSequenceConflictException exception, HttpServletRequest request) {
+        ProblemDetail detail = problem(request, HttpStatus.CONFLICT, "PLAYBACK_PROGRESS_SEQUENCE_CONFLICT",
+                "播放进度事件序号冲突", exception.getMessage());
+        detail.setProperty("currentSequence", exception.getCurrentSequence());
+        return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(org.springframework.http.CacheControl.noStore()).body(detail);
+    }
+
+    @ExceptionHandler(PlaybackProgressRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handlePlaybackProgressRateLimited(
+            PlaybackProgressRateLimitedException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
+                .body(problem(request, HttpStatus.TOO_MANY_REQUESTS, "PLAYBACK_PROGRESS_RATE_LIMITED",
+                        "播放进度保存过于频繁", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlaybackProgressRateLimitUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handlePlaybackProgressRateLimitUnavailable(
+            PlaybackProgressRateLimitUnavailableException exception, HttpServletRequest request) {
+        return playbackProgressUnavailable(request, "PLAYBACK_PROGRESS_RATE_LIMIT_UNAVAILABLE", exception);
+    }
+
+    @ExceptionHandler(PlaybackProgressStoreUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handlePlaybackProgressStoreUnavailable(
+            PlaybackProgressStoreUnavailableException exception, HttpServletRequest request) {
+        return playbackProgressUnavailable(request, "PLAYBACK_PROGRESS_STORE_UNAVAILABLE", exception);
+    }
+
+    private ResponseEntity<ProblemDetail> playbackProgressUnavailable(
+            HttpServletRequest request, String code, RuntimeException exception) {
+        Throwable failure = exception.getCause() == null ? exception : exception.getCause();
+        LOGGER.warn("Playback progress unavailable, traceId={}, exceptionType={}",
+                MDC.get("traceId"), failure.getClass().getSimpleName());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(problem(request, HttpStatus.SERVICE_UNAVAILABLE, code, "播放进度暂时无法保存", exception.getMessage()));
+    }
 
     @ExceptionHandler(PasswordResetVerificationRateLimitedException.class)
     public ResponseEntity<ProblemDetail> handleResetVerificationRateLimited(PasswordResetVerificationRateLimitedException exception, HttpServletRequest request) {

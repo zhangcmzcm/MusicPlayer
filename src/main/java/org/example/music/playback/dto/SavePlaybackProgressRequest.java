@@ -7,7 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
-@Schema(description = "设备最近播放状态")
+@Schema(description = "恰好三个整数字段组成的设备最近播放状态，拒绝小数、科学计数法及数字字符串",
+        additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public record SavePlaybackProgressRequest(
         @NotNull @Positive
         @Schema(description = "当前歌曲正整数ID", minimum = "1", maximum = "9223372036854775807", requiredMode = Schema.RequiredMode.REQUIRED)

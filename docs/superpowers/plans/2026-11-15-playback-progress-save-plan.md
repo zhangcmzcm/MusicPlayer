@@ -183,17 +183,17 @@ public ResponseEntity<SavePlaybackProgressResponse> save(String deviceId,
 
 Controller 的 deviceId 使用 PathVariable 与完整 UUID Pattern 校验，actor 使用 AuthenticationPrincipal。成功返回 ResponseEntity.ok().cacheControl(noStore)。Service 在调用事务代理前消费额度，捕获 DataAccessException 与 TransactionException 并包装 StoreUnavailableException(Throwable cause)。
 
-- [ ] **步骤 1** 编写 ServiceTest 与 ProxyTest，断言认证、额度、事务开始、仓库操作、事务提交的顺序。未认证时无额度或数据库调用，额度故障时无事务调用，事务开始与提交异常均转换存储 503，同号业务异常保持原类型。
-- [ ] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressServiceTest" --tests "org.example.music.playback.service.PlaybackProgressProxyTest" --console=plain`，记录缺失编排组件的失败。
-- [ ] **步骤 3** 实现 Service 与 Controller，Controller 调用 Reader 后将 UUID 转小写并调用 Service。映射使用现有请求读取器模式。补齐 Tag、Operation、请求体 Schema、路径参数、全部 ApiResponse、Retry-After 和 currentSequence 描述。
-- [ ] **步骤 4** 在 GlobalExceptionHandler 增加本接口异常映射，固定 400/415、两个 409、429 与两类 503，新增业务异常响应设置 no-store。409 从异常取得 currentSequence，429 从异常取得 Retry-After。503 日志记录 traceId 和异常类型，返回安全固定消息。
-- [ ] **步骤 5** 编写 MockMvc 测试，固定首次/更新/重试的 200 五字段及 no-store，非法 UUID、严格正文、401、404、409 属性、415、429 头、503 及 application/problem+json 类型。真实无认证请求优先于非法正文，基础校验失败时验证 Service 未被调用。
-- [ ] **步骤 6** 编写真实 JWT 集成测试，使用 support 签发 USER 与 ADMIN Token，覆盖管理员以 USER 登录、角色/版本撤销、账号授权状态不可用。保存相同 UUID 的两个用户各自记录，保存同用户两个 UUID 各自记录，大写/小写 UUID 对同账号落在同一行。验证所有设备与登录角色共用额度，以及重复、冲突、隐藏歌曲、超限时长和数据库故障均消费额度。
-- [ ] **步骤 7** 编写 `should_keep_one_row_and_timestamp_for_concurrent_identical_first_events` 和 `should_reject_conflicting_first_event_with_same_sequence`，断言同内容并发全部 200、同一完整行与时间，不同内容并发一个 200 另一个 409，currentSequence 与胜者内容一致。
-- [ ] **步骤 8** 编写 `should_keep_largest_sequence_for_both_lock_acquisition_orders` 和 `should_allow_independent_devices_to_share_track_read_lock`。使用事务锁与 latch 控制两种序号顺序，最终行对应较大号。第一设备仍持有同曲共享锁时，第二设备保存能完成。通过目标表的真实锁等待证据控制先后。
-- [ ] **步骤 9** 编写归档/删除与保存的两个先后顺序测试，固定先归档/删除时 USER 保存 404，先保存时删除等待提交并最终保留设备序号。删除后原歌曲重试 404，旧号保存其他可见歌曲仍为 409，新号成功。补充账号在认证后被删除、真实锁超时与事务回滚的 503。
-- [ ] **步骤 10** 编写 `should_preserve_saved_event_after_commit_ack_failure_and_retry_idempotently`。在真实提交完成后由测试 spy 抛 TransactionSystemException，断言 HTTP 503 而数据库已保存。恢复 spy，原事件重试为 200 且完整行和 updatedAt 相同。补充提交前失败回滚后可按原事件重试的用例。
-- [ ] **步骤 11** 执行 `.\gradlew.bat test --tests "org.example.music.playback.*" --console=plain`，核对全部本模块单元、HTTP、MySQL 与 Redis 用例数量，通过后提交本任务文件，说明为 `feat: 接入播放进度保存接口并验证并发故障语义`。
+- [x] **步骤 1** 编写 ServiceTest 与 ProxyTest，断言认证、额度、事务开始、仓库操作、事务提交的顺序。未认证时无额度或数据库调用，额度故障时无事务调用，事务开始与提交异常均转换存储 503，同号业务异常保持原类型。
+- [x] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressServiceTest" --tests "org.example.music.playback.service.PlaybackProgressProxyTest" --console=plain`，记录缺失编排组件的失败。
+- [x] **步骤 3** 实现 Service 与 Controller，Controller 调用 Reader 后将 UUID 转小写并调用 Service。映射使用现有请求读取器模式。补齐 Tag、Operation、请求体 Schema、路径参数、全部 ApiResponse、Retry-After 和 currentSequence 描述。
+- [x] **步骤 4** 在 GlobalExceptionHandler 增加本接口异常映射，固定 400/415、两个 409、429 与两类 503，新增业务异常响应设置 no-store。409 从异常取得 currentSequence，429 从异常取得 Retry-After。503 日志记录 traceId 和异常类型，返回安全固定消息。
+- [x] **步骤 5** 编写 MockMvc 测试，固定首次/更新/重试的 200 五字段及 no-store，非法 UUID、严格正文、401、404、409 属性、415、429 头、503 及 application/problem+json 类型。真实无认证请求优先于非法正文，基础校验失败时验证 Service 未被调用。
+- [x] **步骤 6** 编写真实 JWT 集成测试，使用 support 签发 USER 与 ADMIN Token，覆盖管理员以 USER 登录、角色/版本撤销、账号授权状态不可用。保存相同 UUID 的两个用户各自记录，保存同用户两个 UUID 各自记录，大写/小写 UUID 对同账号落在同一行。验证所有设备与登录角色共用额度，以及重复、冲突、隐藏歌曲、超限时长和数据库故障均消费额度。
+- [x] **步骤 7** 编写 `should_keep_one_row_and_timestamp_for_concurrent_identical_first_events` 和 `should_reject_conflicting_first_event_with_same_sequence`，断言同内容并发全部 200、同一完整行与时间，不同内容并发一个 200 另一个 409，currentSequence 与胜者内容一致。
+- [x] **步骤 8** 编写 `should_keep_largest_sequence_for_both_lock_acquisition_orders` 和 `should_allow_independent_devices_to_share_track_read_lock`。使用事务锁与 latch 控制两种序号顺序，最终行对应较大号。第一设备仍持有同曲共享锁时，第二设备保存能完成。通过目标表的真实锁等待证据控制先后。
+- [x] **步骤 9** 编写归档/删除与保存的两个先后顺序测试，固定先归档/删除时 USER 保存 404，先保存时删除等待提交并最终保留设备序号。删除后原歌曲重试 404，旧号保存其他可见歌曲仍为 409，新号成功。补充账号在认证后被删除、真实锁超时与事务回滚的 503。
+- [x] **步骤 10** 编写 `should_preserve_saved_event_after_commit_ack_failure_and_retry_idempotently`。在真实提交完成后由测试 spy 抛 TransactionSystemException，断言 HTTP 503 而数据库已保存。恢复 spy，原事件重试为 200 且完整行和 updatedAt 相同。补充提交前失败回滚后可按原事件重试的用例。
+- [x] **步骤 11** 执行 `.\gradlew.bat test --tests "org.example.music.playback.*" --console=plain`，核对全部本模块单元、HTTP、MySQL 与 Redis 用例数量，通过后提交本任务文件，说明为 `feat: 接入播放进度保存接口并验证并发故障语义`。
 
 ## 任务 5 中文 API、完整验证与独立审核闭环
 

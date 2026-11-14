@@ -1,5 +1,7 @@
 package org.example.music.playback;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+
 import java.sql.Statement;
 import java.time.Instant;
 import java.util.Map;
@@ -18,6 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.GenericContainer;
@@ -34,6 +37,7 @@ import org.testcontainers.utility.DockerImageName;
 abstract class PlaybackProgressIntegrationSupport {
     static final String DEVICE = "bcf04f9c-3876-4a77-8f6d-632ebd78db2e";
     static final String OTHER_DEVICE = "95a52aa9-92f8-4fba-861e-bded8c7fc71a";
+    static final String PATH = "/api/v1/users/me/playback-progress/";
     @Container
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>(DockerImageName.parse("mysql:8.4"));
     @Container
@@ -120,5 +124,10 @@ abstract class PlaybackProgressIntegrationSupport {
 
     Map<String, Object> progress(int id, String deviceId) {
         return jdbc.queryForMap("select * from user_playback_progress where user_id=? and device_id=?", id, deviceId);
+    }
+
+    ResultActions save(String deviceId, long trackId, long position, long sequence, String token) throws Exception {
+        return mvc.perform(put(PATH + deviceId).header("Authorization", token).contentType("application/json")
+                .content("{\"trackId\":%d,\"positionSeconds\":%d,\"sequence\":%d}".formatted(trackId, position, sequence)));
     }
 }
