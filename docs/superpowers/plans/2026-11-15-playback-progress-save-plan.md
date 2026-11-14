@@ -142,13 +142,13 @@ public SavePlaybackProgressResponse save(String deviceId,
 
 IntegrationSupport 位于 playback 测试包，使用 MySQL 8.4、Redis 7.4、真实 JwtTokenService、JdbcTemplate 与 TransactionTemplate。提供 `createUser(String username, String role)`、`createTrack(String status, Long durationMs)`、`bearer(int userId, UserRole role)`、`transaction()`、`progress(int userId, String deviceId)`，最后一个返回该行 Map。每个用例清理进度表、关系表和种子数据，清理本账号的保存额度键。
 
-- [ ] **步骤 1** 编写事务单测 `should_preserve_saved_event_for_identical_sequence`、`should_reject_stale_and_conflicting_sequence`、`should_allow_backward_seek_and_end_reset_with_newer_sequence`。固定 actor 为用户 7、设备 UUID 固定、歌曲 123，最后序号 42。断言 41 抛 Stale 且 currentSequence=42，42 不同位置抛 Conflict，42 相同内容无更新，43 可从 83 保存为 0。
-- [ ] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressTransactionServiceTest" --console=plain`，记录缺失仓库与事务类型的失败。
-- [ ] **步骤 3** 实现 V11 及 Repository。表列按设计第 6 节，device_id 为 CHAR(36) ASCII 二进制比较，track_id 可空。CHECK 使用 position_seconds 与 last_sequence。歌曲查询 FOR SHARE，完整合法事件 INSERT ON DUPLICATE KEY UPDATE 自赋 user_id，再按联合主键 FOR UPDATE 当前读。更新条件包含 `last_sequence < :sequence`，更新审计字段后回读实际状态。
-- [ ] **步骤 4** 实现事务 Service。先检查当前角色可见性和 `durationMs / 1000` 上限，再按步骤 3 建立设备行锁并比较序号。同号同内容返回原行。新事件时间由 Clock 截到微秒，更大序号更新预期影响一行。原生数字按 Number 转换，可空 track_id/duration_ms 保留 null，时间写入 UTC 文本 CAST，读取 DATE_FORMAT 后按 UTC 转 Instant。
-- [ ] **步骤 5** 增加权限与时长参数化单测，覆盖 USER/ADMIN 登录角色、三种状态、缺失歌曲、durationMs 为 null/0/900/1000/215430，断言 215 合法而 216 超限，Long.MAX_VALUE 在已知时长下拒绝且计算保持安全。核对可见性和时长失败先于设备行操作。
-- [ ] **步骤 6** 新建真实 MySQL 迁移与仓库测试，固定 V11 成功、主键顺序、索引、外键动作、两个 CHECK、微秒往返、UTC/Pacific-Honolulu 时区、重复事件完整审计字段及回滚。删除歌曲后断言 track_id=null、last_sequence=42、位置及时间保留，随后旧号保存其他可见歌曲被拒绝，新号 43 可保存。测试结束恢复 JVM 默认时区。
-- [ ] **步骤 7** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressTransactionServiceTest" --tests "org.example.music.playback.PlaybackProgressRepositoryIntegrationTest" --console=plain`，核对真实 MySQL 已运行及 XML 数量后提交，说明为 `feat: 实现设备播放进度持久化与序号保护`。
+- [x] **步骤 1** 编写事务单测 `should_preserve_saved_event_for_identical_sequence`、`should_reject_stale_and_conflicting_sequence`、`should_allow_backward_seek_and_end_reset_with_newer_sequence`。固定 actor 为用户 7、设备 UUID 固定、歌曲 123，最后序号 42。断言 41 抛 Stale 且 currentSequence=42，42 不同位置抛 Conflict，42 相同内容无更新，43 可从 83 保存为 0。
+- [x] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressTransactionServiceTest" --console=plain`，记录缺失仓库与事务类型的失败。
+- [x] **步骤 3** 实现 V11 及 Repository。表列按设计第 6 节，device_id 为 CHAR(36) ASCII 二进制比较，track_id 可空。CHECK 使用 position_seconds 与 last_sequence。歌曲查询 FOR SHARE，完整合法事件 INSERT ON DUPLICATE KEY UPDATE 自赋 user_id，再按联合主键 FOR UPDATE 当前读。更新条件包含 `last_sequence < :sequence`，更新审计字段后回读实际状态。
+- [x] **步骤 4** 实现事务 Service。先检查当前角色可见性和 `durationMs / 1000` 上限，再按步骤 3 建立设备行锁并比较序号。同号同内容返回原行。新事件时间由 Clock 截到微秒，更大序号更新预期影响一行。原生数字按 Number 转换，可空 track_id/duration_ms 保留 null，时间写入 UTC 文本 CAST，读取 DATE_FORMAT 后按 UTC 转 Instant。
+- [x] **步骤 5** 增加权限与时长参数化单测，覆盖 USER/ADMIN 登录角色、三种状态、缺失歌曲、durationMs 为 null/0/900/1000/215430，断言 215 合法而 216 超限，Long.MAX_VALUE 在已知时长下拒绝且计算保持安全。核对可见性和时长失败先于设备行操作。
+- [x] **步骤 6** 新建真实 MySQL 迁移与仓库测试，固定 V11 成功、主键顺序、索引、外键动作、两个 CHECK、微秒往返、UTC/Pacific-Honolulu 时区、重复事件完整审计字段及回滚。删除歌曲后断言 track_id=null、last_sequence=42、位置及时间保留，随后旧号保存其他可见歌曲被拒绝，新号 43 可保存。测试结束恢复 JVM 默认时区。
+- [x] **步骤 7** 执行 `.\gradlew.bat test --tests "org.example.music.playback.service.PlaybackProgressTransactionServiceTest" --tests "org.example.music.playback.PlaybackProgressRepositoryIntegrationTest" --console=plain`，核对真实 MySQL 已运行及 XML 数量后提交，说明为 `feat: 实现设备播放进度持久化与序号保护`。
 
 ## 任务 3 账号共享 Redis 限流
 
