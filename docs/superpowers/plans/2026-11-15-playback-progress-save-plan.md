@@ -100,7 +100,7 @@ public SavePlaybackProgressRequest read(HttpServletRequest request);
 
 RequestReader 构造器注入 Validator。请求 record 分别使用 NotNull/Positive、NotNull/PositiveOrZero、NotNull/Min(1)/Max(9007199254740991L)。两个异常提供无参构造器和安全固定消息。测试辅助 `private SavePlaybackProgressRequest read(String body)` 构造 UTF-8 application/json 的 MockHttpServletRequest，调用真实 Reader。
 
-- [ ] **步骤 1** 编写 `should_read_three_integer_fields_in_any_order`、`should_reject_decoded_duplicate_fields_and_non_integer_tokens`，固定下列断言。
+- [x] **步骤 1** 编写 `should_read_three_integer_fields_in_any_order`、`should_reject_decoded_duplicate_fields_and_non_integer_tokens`，固定下列断言。
 
 ```java
 assertEquals(new SavePlaybackProgressRequest(123L, 83L, 42L),
@@ -111,10 +111,10 @@ assertThrows(PlaybackProgressValidationException.class,
         () -> read("{\"trackId\":123,\"positionSeconds\":1e0,\"sequence\":42}"));
 ```
 
-- [ ] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.playback.controller.PlaybackProgressRequestReaderTest" --console=plain`，记录新类型缺失导致的编译失败。
-- [ ] **步骤 3** 实现 DTO 与 Reader。按解码后的字段名检查白名单与重复，数字要求 VALUE_NUMBER_INT，使用 Long 读取并捕获溢出。检查完整单个对象、恰好三个字段和流结束，再执行 Validator。媒体类型按 application/json 匹配并接受参数，解析正文使用 JsonFactory 字节流入口。
-- [ ] **步骤 4** 增加参数化用例，覆盖转义同名键、额外对象、数组、未知字段、缺失/null、负数、sequence 为 0/9007199254740992、Long 溢出、数字字符串、缺少/非法 Content-Type、application/json;charset=UTF-8。断言合法 positionSeconds=Long.MAX_VALUE、sequence=9007199254740991 可通过基础解析。读取异常返回固定校验异常，字符数据由真实解析器验证。
-- [ ] **步骤 5** 重跑步骤 2 命令，按 XML 核对该组全部通过后提交本任务文件，提交说明为 `feat: 定义播放进度严格请求契约`。
+- [x] **步骤 2** 执行 `.\gradlew.bat test --tests "org.example.music.playback.controller.PlaybackProgressRequestReaderTest" --console=plain`，记录新类型缺失导致的编译失败。
+- [x] **步骤 3** 实现 DTO 与 Reader。按解码后的字段名检查白名单与重复，数字要求 VALUE_NUMBER_INT，使用 Long 读取并捕获溢出。检查完整单个对象、恰好三个字段和流结束，再执行 Validator。媒体类型按 application/json 匹配并接受参数，解析正文使用 JsonFactory 字节流入口。
+- [x] **步骤 4** 增加参数化用例，覆盖转义同名键、额外对象、数组、未知字段、缺失/null、负数、sequence 为 0/9007199254740992、Long 溢出、数字字符串、缺少/非法 Content-Type、application/json;charset=UTF-8。断言合法 positionSeconds=Long.MAX_VALUE、sequence=9007199254740991 可通过基础解析。读取异常返回固定校验异常，字符数据由真实解析器验证。
+- [x] **步骤 5** 重跑步骤 2 命令，按 XML 核对该组全部通过后提交本任务文件，提交说明为 `feat: 定义播放进度严格请求契约`。
 
 ## 任务 2 数据模型、行锁与序号事务
 
